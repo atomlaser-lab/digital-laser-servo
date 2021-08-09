@@ -21,7 +21,7 @@ entity TriangularScan is
         regs_i      :   in  t_param_reg_array(1 downto 0);
         
         scan_o      :   out t_dac;              --Output scan data
-        scanDir_o   :   out std_logic;          --Indicates the scan direction ('0' = negative, '1' = positive)
+        polarity_o  :   out std_logic;          --Indicates the scan direction ('0' = negative, '1' = positive)
         valid_o     :   out std_logic           --Indicates valid averaged data
     );
 end TriangularScan;
@@ -69,6 +69,7 @@ end process;
 -- Define process, and assign scan_o to scan
 --
 scan_o <= scan;
+polarity_o <= polarity;
 ScanProc: process(clk,aresetn) is
 begin
     if aresetn = '0' then

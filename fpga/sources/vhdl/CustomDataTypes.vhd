@@ -84,6 +84,41 @@ constant INIT_MEM_BUS_SLAVE     :   t_mem_bus_slave :=  (data   =>  (others => '
                                                          status =>  idle);
 constant INIT_MEM_BUS           :   t_mem_bus       :=  (m  =>  INIT_MEM_BUS_MASTER,
                                                          s  =>  INIT_MEM_BUS_SLAVE);
+--
+-- Define FIFO data types
+--
+constant FIFO_WIDTH         :   natural :=  32;
+constant FIFO_TIMEOUT       :   unsigned(27 downto 0)   :=  to_unsigned(125000000,28);
+
+type t_fifo_bus_master is record
+    status  :   t_status;
+    rd_en   :   std_logic;
+    count   :   unsigned(27 downto 0);
+end record t_fifo_bus_master;
+
+type t_fifo_bus_slave is record
+    data    :   std_logic_vector(FIFO_WIDTH-1 downto 0);
+    valid   :   std_logic;
+    empty   :   std_logic;
+    full    :   std_logic;
+end record t_fifo_bus_slave;
+
+type t_fifo_bus is record
+    m   :   t_fifo_bus_master;
+    s   :   t_fifo_bus_slave;
+end record t_fifo_bus;
+
+type t_fifo_bus_array is array(natural range <>) of t_fifo_bus;
+
+constant INIT_FIFO_BUS_MASTER    :  t_fifo_bus_master :=(rd_en  =>  '0',
+                                                        status =>  idle,
+                                                        count  =>  (others => '0'));
+constant INIT_FIFO_BUS_SLAVE     :   t_fifo_bus_slave :=(data   =>  (others => '0'),
+                                                        empty  =>  '0',
+                                                        full   =>  '0',
+                                                        valid  =>  '0');
+constant INIT_FIFO_BUS           :   t_FIFO_bus       :=(m  =>  INIT_FIFO_BUS_MASTER,
+                                                        s  =>  INIT_FIFO_BUS_SLAVE);
 
 
 type t_control is record

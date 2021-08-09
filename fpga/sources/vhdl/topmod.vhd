@@ -30,12 +30,24 @@ entity topmod is
         --
         -- ADC data
         --
-        adcData_i       :   in  std_logic_vector(31 downto 0)
+        adcData_i       :   in  std_logic_vector(31 downto 0);
+        --
+        -- DAC data
+        --
+        m_axis_tdata    :   out std_logic_vector(31 downto 0);
+        m_axis_tvalid   :   out std_logic
     );
 end topmod;
 
 
 architecture Behavioural of topmod is
+
+ATTRIBUTE X_INTERFACE_INFO : STRING;
+ATTRIBUTE X_INTERFACE_INFO of m_axis_tdata: SIGNAL is "xilinx.com:interface:axis:1.0 m_axis TDATA";
+ATTRIBUTE X_INTERFACE_INFO of m_axis_tvalid: SIGNAL is "xilinx.com:interface:axis:1.0 m_axis TVALID";
+ATTRIBUTE X_INTERFACE_PARAMETER : STRING;
+ATTRIBUTE X_INTERFACE_PARAMETER of m_axis_tdata: SIGNAL is "CLK_DOMAIN system_processing_system7_0_0_FCLK_CLK0,FREQ_HZ 125000000";
+ATTRIBUTE X_INTERFACE_PARAMETER of m_axis_tvalid: SIGNAL is "CLK_DOMAIN system_processing_system7_0_0_FCLK_CLK0,FREQ_HZ 125000000";
 
 component QuickAvg is
     port(
@@ -94,25 +106,28 @@ component TriangularScan is
         regs_i      :   in  t_param_reg_array(1 downto 0);
         
         scan_o      :   out t_dac;              --Output scan data
-        scanDir_o   :   out std_logic;          --Indicates the scan direction ('0' = negative, '1' = positive)
+        polarity_o  :   out std_logic;          --Indicates the scan direction ('0' = negative, '1' = positive)
         valid_o     :   out std_logic           --Indicates valid averaged data
     );
 end component;
 
-component SaveADCData is
+component FIFOHandler is
     generic(
-        MEM_SIZE    :   natural                 --Options are 14, 13, and 12
+        ENABLE_SKIP :   boolean :=  false
     );
     port(
-        readClk     :   in  std_logic;          --Clock for reading data
-        writeClk    :   in  std_logic;          --Clock for writing data
-        aresetn     :   in  std_logic;          --Asynchronous reset
+        wr_clk      :   in  std_logic;
+        rd_clk      :   in  std_logic;
+        aresetn     :   in  std_logic;
         
-        data_i      :   in  std_logic_vector;   --Input data, maximum length of 32 bits
-        valid_i     :   in  std_logic;          --High for one clock cycle when data_i is valid
+        data_i      :   in  std_logic_vector(FIFO_WIDTH-1 downto 0);
+        valid_i     :   in  std_logic;
+
+        writeSkip   :   in  unsigned(15 downto 0);
         
-        bus_m       :   in  t_mem_bus_master;   --Master memory bus
-        bus_s       :   out t_mem_bus_slave     --Slave memory bus
+        fifoReset   :   in  std_logic;
+        bus_m       :   in  t_fifo_bus_master;
+        bus_s       :   out t_fifo_bus_slave
     );
 end component;
 
@@ -164,16 +179,22 @@ signal scan_o                       :   t_dac;
 signal scanValid_o                  :   std_logic;
 signal scanEnable_i                 :   std_logic;
 signal scanEnableSet                :   std_logic;
-signal scanDir_o                    :   std_logic;
+signal scanPolairy_o                :   std_logic;
 --
 -- Memory signals and settings
 --
 type t_fifo_route is (adc1, adc2, scan, pid1, pid2, act1, act2, no_output);
-signal fifoReg                      :   t_param_reg;
+signal fifoReg_o, fifoReg           :   t_param_reg;
 signal fifoRoute                    :   t_fifo_route;
 signal fifo1, fifo2                 :   signed(15 downto 0);
+signal fifoValid1, fifoValid2       :   std_logic;
 signal fifo_i, fifo_o               :   std_logic_vector(31 downto 0);
+signal fifoValid_i                  :   std_logic;
 signal fifoReset, fifoEnable        :   std_logic;
+signal fifo_m                       :   t_fifo_bus_master;
+signal fifo_s                       :   t_fifo_bus_slave;
+signal fifoWriteSkip                :   unsigned(15 downto 0);
+
 
 procedure convert_fifo_route(
     signal val_i    :   in  std_logic_vector(7 downto 0);
@@ -202,16 +223,16 @@ begin
 --
 -- Start by parsing parameters
 --
-pidRegs1(0) <= std_logic_vector(resize(unsigned(topReg(7 downto 0)),PARAM_WIDTH));
-pidRegs2(0) <= std_logic_vector(resize(unsigned(topReg(15 downto 8)),PARAM_WIDTH));
+-- pidRegs1(0) <= std_logic_vector(resize(unsigned(topReg(7 downto 0)),PARAM_WIDTH));
+-- pidRegs2(0) <= std_logic_vector(resize(unsigned(topReg(15 downto 8)),PARAM_WIDTH));
 scanEnableSet <= topReg(16);
 
 pidEnable1 <= pidRegs1(0)(0);
 pidScanEnable1 <= pidRegs1(0)(2);
+control1_i <= pidRegs1(0)(31 downto 16);
 pidEnable2 <= pidRegs2(0)(0);
 pidScanEnable2 <= pidRegs2(0)(2);
-
-
+control2_i <= pidRegs2(0)(31 downto 16);
 --
 -- Begin with a quick-average module for initial filtering
 --
@@ -233,13 +254,13 @@ port map(
 --
 GenScan: TriangularScan
 port map(
-    clk         =>  adcClk,
-    aresetn     =>  aresetn,
-    enable      =>  scanEnable_i,
-    regs_i      =>  scanRegs,
-    scan_o      =>  scan_o,
-    scanDir_o   =>  scanDir_o,
-    valid_o     =>  scanValid_o
+    clk             =>  adcClk,
+    aresetn         =>  aresetn,
+    enable          =>  scanEnable_i,
+    regs_i          =>  scanRegs,
+    scan_o          =>  scan_o,
+    polarity_o      =>  scanPolarity_o,
+    valid_o         =>  scanValid_o
 );
 scanEnable_i <= scanEnableSet and not(pidEnable1 or pidEnable2);
 --
@@ -304,6 +325,11 @@ fifo1 <= adcFilt_o(0) when fifoRoute = adc1 else
          act1_o       when fifoRoute = act1 else
          act2_o       when fifoRoute = act2 else
          (others => '0');
+
+fifoValid1 <= filtValid_o when fifoRoute = adc1 or fifoRoute = adc2 else
+              scanValid_o when fifoRoute = scan else
+              pidValid1_o;          
+
 fifo2 <= adcFilt_o(0) when fifoRoute = adc1 else
          adcFilt_o(1) when fifoRoute = adc2 else
          scan_o       when fifoRoute = scan else
@@ -312,6 +338,38 @@ fifo2 <= adcFilt_o(0) when fifoRoute = adc1 else
          act1_o       when fifoRoute = act1 else
          act2_o       when fifoRoute = act2 else
          (others => '0');
+
+fifoValid2 <= filtValid_o when fifoRoute = adc1 or fifoRoute = adc2 else
+scanValid_o when fifoRoute = scan else
+pidValid2_o;
+--
+-- Combine FIFO data. FIFO inputs are enabled when the scan is going in the
+-- positive direction OR the scan is disabled (as scanPolarity_o = '1')
+--
+fifoValid_i <= (fifoValid1 or fifoValid2) and scanPolarity_o;
+fifo_i <= std_logic_vector(fifo2) & std_logic_vector(fifo1);
+--
+-- Parse FIFO parameters
+--
+fifoWriteSkip <= unsigned(fifoReg(15 downto 0));
+fifoReg_o <= (0 => not(fifo_s.empty), others => '0');
+fifoReset <= triggers(0);
+
+FIFO: FIFOHandler
+generic map(
+    ENABLE_SKIP => true
+)
+port map(
+    wr_clk          =>  adcClk,
+    rd_clk          =>  sysClk,
+    aresetn         =>  aresetn,
+    data_i          =>  fifo_i,
+    valid_i         =>  fifoValid_i,
+    writeSkip       =>  fifoWriteSkip,
+    fifoReset       =>  fifoReset,
+    bus_m           =>  fifo_m,
+    bus_s           =>  fifo_s
+);
 
 --
 -- AXI communication routing - connects bus objects to std_logic signals
@@ -336,6 +394,7 @@ begin
         pidRegs1(pidRegs1'length - 1 downto 1) <= (others => (others => '0'));
         pidRegs2(pidRegs2'length - 1 downto 1) <= (others => (others => '0'));
         scanRegs <= (others => (others => '0'));
+        fifo_m <= INIT_FIFO_BUS_MASTER;
         fifoReg <= (others => '0');
         
     elsif rising_edge(sysClk) then
@@ -390,7 +449,7 @@ begin
                             when X"00002C" => rw(bus_m,bus_s,comState,scanRegs(0));
                             when X"000030" => rw(bus_m,bus_s,comState,scanRegs(1));
                             --
-                            -- FIFO register
+                            -- FIFO read/write register
                             --
                             when X"000034" => rw(bus_m,bus_s,comState,fifoReg);
                             --
@@ -405,41 +464,12 @@ begin
                     --
                     when X"01" =>
                         ParamCaseReadOnly: case(bus_m.addr(23 downto 0)) is
-                            when X"000000" => readOnly(bus_m,bus_s,comState,mem_bus_s(0).last);
-                            when X"000004" => readOnly(bus_m,bus_s,comState,mem_bus_s(1).last);
-                            when X"000008" => readOnly(bus_m,bus_s,comState,mem_bus_s(2).last);
-                            when X"00000C" => readOnly(bus_m,bus_s,comState,mem_bus_s(3).last);
-                            when X"000010" => readOnly(bus_m,bus_s,comState,mem_bus_s(4).last);
+                            when X"000000" => readOnly(bus_m,bus_s,comState,fifoReg_o);
+                            when X"000004" => readOnly(bus_m,bus_s,comState,fifo_m,fifo_s);
                             when others => 
                                 comState <= finishing;
                                 bus_s.resp <= "11";
                         end case;
-                    --
-                    -- Read data
-                    -- X"02" => Raw data for signal acquisition
-                    -- X"03" => Integrated data for signal acquisition
-                    -- X"04" => Raw data for auxiliary acquisition
-                    -- X"05" => Integrated data for signal acquisition
-                    -- 
-                    when X"02" | X"03" | X"04" | X"05" | X"06" =>
-                        if bus_m.valid(1) = '0' then
-                            bus_s.resp <= "11";
-                            comState <= finishing;
-                            mem_bus_m(memIdx).trig <= '0';
-                            mem_bus_m(memIdx).status <= idle;
-                        elsif mem_bus_s(memIdx).valid = '1' then
-                            bus_s.data <= mem_bus_s(memIdx).data;
-                            comState <= finishing;
-                            bus_s.resp <= "01";
-                            mem_bus_m(memIdx).status <= idle;
-                            mem_bus_m(memIdx).trig <= '0';
-                        elsif mem_bus_m(memIdx).status = idle then
-                            mem_bus_m(memIdx).addr <= bus_m.addr(MEM_ADDR_WIDTH+1 downto 2);
-                            mem_bus_m(memIdx).status <= waiting;
-                            mem_bus_m(memIdx).trig <= '1';
-                         else
-                            mem_bus_m(memIdx).trig <= '0';
-                        end if;
                     
                     when others => 
                         comState <= finishing;
