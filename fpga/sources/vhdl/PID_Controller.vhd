@@ -45,19 +45,19 @@ architecture Behavioral of PID_Controller is
 --
 constant EXP_WIDTH	:	integer	:=	16;							--Expanded width of signals
 constant MULT_WIDTH	:	integer	:=	PID_WIDTH + EXP_WIDTH;		--Width of multiplied signals
-constant MULT_DELAY	:	integer	:=	7;							--Latency of the multiplication blocks
+constant MULT_DELAY	:	integer	:=	5;							--Latency of the multiplication blocks
 --
 -- Multiplies a 40-bit signed value with a 16-bit unsigned value.
 -- The widths of these signals must match the width of their appropriate parameters.
 -- a'length = EXP_WIDTH, b'length = K_WIDTH, p'length = MULT_WIDTH
 --
 COMPONENT K_Multiplier
-  PORT (
-	 clk : in std_logic;
+PORT (
+    clk : in std_logic;
     a : IN STD_LOGIC_VECTOR(EXP_WIDTH-1 DOWNTO 0);
-    b : IN STD_LOGIC_VECTOR(K_WIDTH-1 DOWNTO 0);
+    b : IN STD_LOGIC_VECTOR(PID_WIDTH-1 DOWNTO 0);
     p : OUT STD_LOGIC_VECTOR(MULT_WIDTH-1 DOWNTO 0)
-  );
+);
 END COMPONENT;
 --
 -- Control signals
@@ -79,7 +79,7 @@ signal err0, err1, err2 				:	signed(EXP_WIDTH - 1 downto 0);
 signal Kp, Ki, Kd						:	std_logic_vector(PID_WIDTH - 1 downto 0);
 signal divisor							:	integer range 0 to 2**(PID_WIDTH - 1);
 signal prop_i, integral_i, derivative_i	:	signed(EXP_WIDTH - 1 downto 0);
-signal prop_o, integral_o, derivative_o	:	signed(MULT_WIDTH - 1 downto 0);
+signal prop_o, integral_o, derivative_o	:	std_logic_vector(MULT_WIDTH - 1 downto 0);
 --
 -- Final values
 --
@@ -105,7 +105,7 @@ polarity <= regs_i(0)(1);
 Kp <= regs_i(1)(15 downto 0);
 Ki <= regs_i(1)(31 downto 16);
 Kd <= regs_i(2)(15 downto 0);
-divisor <= regs_i(2)(31 downto 16);
+divisor <= to_integer(unsigned(regs_i(2)(31 downto 16)));
 --
 -- Parse limits, and shift left so that we can compare the full-precision values with the limits
 --
@@ -122,7 +122,7 @@ scan <= shift_left(resize(scan_i,scan'length),divisor);
 -- Calculate error signal
 --
 err0 <= control - measurement when polarity = '0' else measurement - control;
-err_o <= resize(err0,err_o'length);
+error_o <= resize(err0,error_o'length);
 
 --
 -- Calculate actuator stages
@@ -166,7 +166,7 @@ begin
 		pidNew <= (others => '0');
 		pidDivide <= (others => '0');
 		pid_o <= (others => '0');
-		adc_o <= (others => '0');
+		act_o <= (others => '0');
 		err1 <= (others => '0');
 		err2 <= (others => '0');
 
@@ -179,7 +179,7 @@ begin
 			when acquire_input =>
 				multCount <= (others => '0');
 				valid_o <= '0';
-				if enable = '1' and measValid = '1' then
+				if enable = '1' and measValid_i = '1' then
 					--
 					-- Calculate the various PID terms from current and previous error signals
 					--
@@ -224,7 +224,7 @@ begin
 					-- Also add the scan value (shifted left to be the same size)
 					--
 					pidNew <= pidNew + pidSum;
-					multCount <= 0;
+					multCount <= (others => '0');
 					state <= add_scan;
 				end if;
 

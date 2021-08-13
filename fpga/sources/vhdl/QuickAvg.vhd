@@ -32,7 +32,7 @@ architecture Behavioural of QuickAvg is
 -- Padding of integrated signals and their extended widhts
 --
 constant PADDING    :   natural :=  16;  
-constant EXT_WIDTH  :   natural :=  adcData_i'length/2+PADDING; 
+constant EXT_WIDTH  :   natural :=  ADC_WIDTH/2+PADDING; 
 --
 -- Parameters
 --
@@ -51,7 +51,7 @@ begin
 --
 -- Parse parameters
 --
-log2Avgs <= to_integer(unsigned(reg0(31 downto 28)));
+log2Avgs <= to_integer(unsigned(reg0(3 downto 0)));
 numAvgs <= shift_left(to_unsigned(1,numAvgs'length),log2Avgs);
 --
 -- Split input signal into the two channels as signed integers
@@ -66,11 +66,10 @@ MainProc: process(clk,aresetn) is
 begin
     if aresetn = '0' then
         avgCount <= (others => '0');
-        sampleCount <= (others => '0');
         adc1 <= (others => '0');
         adc2 <= (others => '0');
         valid_o <= '0';
-        adc_o <= (others => '0');
+        adc_o <= (others => (others => '0'));
     elsif rising_edge(clk) then
         if valid_i = '1' then
             --
@@ -93,13 +92,13 @@ begin
                 adc2 <= adc2_tmp;
                 valid_o <= '0';
                 avgCount <= avgCount + 1;
-            elsif avgCount <= numAvgs - 1 then
+            elsif avgCount = numAvgs - 1 then
                 --
                 -- When averaging, this is the last count value before output
                 -- So the output data is the last adc%d value plus the current input
                 --
-                adc_o(0) <= std_logic_vector(resize(shift_right(adc1 + adc1_tmp,log2Avgs),ADC_WIDTH));
-                adc_o(1) <= std_logic_vector(resize(shift_right(adc2 + adc2_tmp,log2Avgs),ADC_WIDTH));
+                adc_o(0) <= resize(shift_right(adc1 + adc1_tmp,log2Avgs),ADC_WIDTH);
+                adc_o(1) <= resize(shift_right(adc2 + adc2_tmp,log2Avgs),ADC_WIDTH);
                 valid_o <= '1';
                 avgCount <= (others => '0');
             else

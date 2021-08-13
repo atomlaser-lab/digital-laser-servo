@@ -1,0 +1,9 @@
+laser-servo/
+NA/
+sources/system/ip/
+sources/system/ipshared/
+sources/system/ui
+
+sources/ip/.Xil/
+
+*.tmp

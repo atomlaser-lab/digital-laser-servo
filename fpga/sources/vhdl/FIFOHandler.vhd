@@ -50,7 +50,7 @@ begin
 --
 -- Generate reset signal
 --
-rst <= not(aresetn) or bus_m.reset;
+rst <= not(aresetn) or fifoReset;
 --
 -- Creates a valid output signal when rd_en is high
 --
@@ -92,7 +92,7 @@ SkipGen: if ENABLE_SKIP generate
                     --
                     data <= data_i;
                     valid <= '1';
-                    count <= (0 => 1, others => '0');
+                    count <= (0 => '1', others => '0');
                 elsif count < writeSkip then
                     --
                     -- Count upwards to the skip value

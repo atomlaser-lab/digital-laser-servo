@@ -137,6 +137,7 @@ end component;
 signal comState             :   t_status                        :=  idle;
 signal bus_m                :   t_axi_bus_master                :=  INIT_AXI_BUS_MASTER;
 signal bus_s                :   t_axi_bus_slave                 :=  INIT_AXI_BUS_SLAVE;
+signal reset                :   std_logic;
 --
 -- Shared registers and signals
 --
@@ -145,7 +146,7 @@ signal topReg               :   t_param_reg;
 --
 -- Initial filter signals
 --
-signal initFilterReg                :   t_param_reg             :=  (others => '0');
+signal initFiltReg                  :   t_param_reg             :=  (others => '0');
 signal adcFilt_i                    :   t_adc_array;
 signal adcFilt_o                    :   t_adc_array;
 signal filtValid_i, filtValid_o     :   std_logic;
@@ -179,7 +180,7 @@ signal scan_o                       :   t_dac;
 signal scanValid_o                  :   std_logic;
 signal scanEnable_i                 :   std_logic;
 signal scanEnableSet                :   std_logic;
-signal scanPolairy_o                :   std_logic;
+signal scanPolarity_o               :   std_logic;
 --
 -- Memory signals and settings
 --
@@ -229,10 +230,10 @@ scanEnableSet <= topReg(16);
 
 pidEnable1 <= pidRegs1(0)(0);
 pidScanEnable1 <= pidRegs1(0)(2);
-control1_i <= pidRegs1(0)(31 downto 16);
+control1_i <= signed(pidRegs1(0)(31 downto 16));
 pidEnable2 <= pidRegs2(0)(0);
 pidScanEnable2 <= pidRegs2(0)(2);
-control2_i <= pidRegs2(0)(31 downto 16);
+control2_i <= signed(pidRegs2(0)(31 downto 16));
 --
 -- Begin with a quick-average module for initial filtering
 --
@@ -243,9 +244,9 @@ InitFilt: QuickAvg
 port map(
     clk         =>  adcClk,
     aresetn     =>  aresetn,
-    reg0        =>  initFilterReg,
+    reg0        =>  initFiltReg,
     adc_i       =>  adcFilt_i,
-    valid_i     =>  filtValid_i;
+    valid_i     =>  filtValid_i,
     adc_o       =>  adcFilt_o,
     valid_o     =>  filtValid_o
 );
@@ -273,7 +274,7 @@ scan1_i <= scan_o when pidScanEnable1 = '1' else (others => '0');
 --
 -- Define PID 1 module
 --
-PID1: PID_Controller
+PID_Controller1: PID_Controller
 port map(
     clk         =>  adcClk,
     aresetn     =>  aresetn,
@@ -298,7 +299,7 @@ scan2_i <= scan_o when pidScanEnable2 = '1' else (others => '0');
 --
 -- Define PID 2 module
 --
-PID2: PID_Controller
+PID_Controller2: PID_Controller
 port map(
     clk         =>  adcClk,
     aresetn     =>  aresetn,
@@ -316,7 +317,7 @@ port map(
 --
 -- Routing of signals to memory
 --
-fifoRoute <= convert_fifo_route(fifoReg(7 downto 0));
+convert_fifo_route(fifoReg(7 downto 0),fifoRoute);
 fifo1 <= adcFilt_o(0) when fifoRoute = adc1 else
          adcFilt_o(1) when fifoRoute = adc2 else
          scan_o       when fifoRoute = scan else
@@ -465,7 +466,7 @@ begin
                     when X"01" =>
                         ParamCaseReadOnly: case(bus_m.addr(23 downto 0)) is
                             when X"000000" => readOnly(bus_m,bus_s,comState,fifoReg_o);
-                            when X"000004" => readOnly(bus_m,bus_s,comState,fifo_m,fifo_s);
+                            when X"000004" => fifoRead(bus_m,bus_s,comState,fifo_m,fifo_s);
                             when others => 
                                 comState <= finishing;
                                 bus_s.resp <= "11";

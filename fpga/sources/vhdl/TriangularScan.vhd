@@ -43,8 +43,8 @@ begin
 --
 offset <= signed(regs_i(0)(15 downto 0));
 amplitude <= signed(regs_i(0)(31 downto 16));
-stepSize <= signed(regs_i(1)(15 downto 0));
-stepTime <= unsigned(regs_i(1)(31 downto 16));
+stepSize <= resize(signed(regs_i(1)(15 downto 0)),stepSize'length);
+stepTime <= resize(unsigned(regs_i(1)(31 downto 16)),stepTime'length);
 lowerLimit <= offset - amplitude;
 upperLimit <= offset + amplitude;
 --
@@ -113,7 +113,8 @@ begin
                 --
                 scan <= scan - stepSize;
             end if;
-
+        else
+            valid_o <= '0';
         end if;
     end if;
 end process;

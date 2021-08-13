@@ -88,6 +88,12 @@ procedure readOnly(
     signal state    :   inout   t_status;
     signal param    :   in      unsigned);
 
+procedure readOnly(
+    signal bus_i    :   in      t_axi_bus_master;
+    signal bus_o    :   out     t_axi_bus_slave;
+    signal state    :   inout   t_status;
+    signal param    :   in      std_logic_vector);
+    
 procedure fifoRead(
     signal axi_m    :   in      t_axi_bus_master;
     signal axi_s    :   out     t_axi_bus_slave;
@@ -192,6 +198,25 @@ begin
     end if;
 end readOnly;
 
+procedure readOnly(
+    signal bus_i    :   in      t_axi_bus_master;
+    signal bus_o    :   out     t_axi_bus_slave;
+    signal state    :   inout   t_status;
+    signal param    :   in      std_logic_vector) is 
+begin
+    state <= finishing;
+    if bus_i.valid(1) = '0' then
+        bus_o.resp <= "11";
+    else
+        bus_o.resp <= "01";
+        if param'length >= AXI_DATA_WIDTH then
+            bus_o.data <= param(AXI_DATA_WIDTH-1 downto 0);
+        else
+            bus_o.data <= (AXI_DATA_WIDTH-1 downto param'length => '0') & param;
+        end if;
+    end if;
+end readOnly;
+
 procedure fifoRead(
     signal axi_m    :   in      t_axi_bus_master;
     signal axi_s    :   out     t_axi_bus_slave;
@@ -206,7 +231,7 @@ begin
         fifo_m.status <= idle;
         fifo_m.count <= (others => '0');
     elsif fifo_s.valid = '1' then
-        axi_s.data <= resize(fifo_s.data,axi_s.data'length);
+        axi_s.data <= std_logic_vector(resize(unsigned(fifo_s.data),axi_s.data'length));
         state <= finishing;
         axi_s.resp <= "01";
         fifo_m.status <= idle;
