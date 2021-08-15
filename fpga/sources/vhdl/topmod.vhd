@@ -101,9 +101,10 @@ component TriangularScan is
         --
         -- Parameter inputs:
         -- 0: (31 downto 16 => scan amplitude, 15 downto 0 => offset)
-        -- 1: (31 downto 16 => step time, 15 downto 0 => step size)
+        -- 1: (31 downto 0) => step size
+        -- 2: (31 downto 0) => step time
         --
-        regs_i      :   in  t_param_reg_array(1 downto 0);
+        regs_i      :   in  t_param_reg_array(2 downto 0);
         
         scan_o      :   out t_dac;              --Output scan data
         polarity_o  :   out std_logic;          --Indicates the scan direction ('0' = negative, '1' = positive)
@@ -112,18 +113,14 @@ component TriangularScan is
 end component;
 
 component FIFOHandler is
-    generic(
-        ENABLE_SKIP :   boolean :=  false
-    );
     port(
         wr_clk      :   in  std_logic;
         rd_clk      :   in  std_logic;
         aresetn     :   in  std_logic;
         
+        regs_i      :   in  t_param_reg;
+        enable_i    :   in  std_logic;   
         data_i      :   in  std_logic_vector(FIFO_WIDTH-1 downto 0);
-        valid_i     :   in  std_logic;
-
-        writeSkip   :   in  unsigned(15 downto 0);
         
         fifoReset   :   in  std_logic;
         bus_m       :   in  t_fifo_bus_master;
@@ -175,7 +172,7 @@ signal pidValid2_o                  :   std_logic;
 --
 -- Scan settings and signals
 --
-signal scanRegs                     :   t_param_reg_array(1 downto 0);
+signal scanRegs                     :   t_param_reg_array(2 downto 0);
 signal scan_o                       :   t_dac;
 signal scanValid_o                  :   std_logic;
 signal scanEnable_i                 :   std_logic;
@@ -185,8 +182,10 @@ signal scanPolarity_o               :   std_logic;
 -- Memory signals and settings
 --
 type t_fifo_route is (adc1, adc2, scan, pid1, pid2, act1, act2, no_output);
+type t_fifo_valid_state is (idle,wait_for_fifo1,wait_for_fifo2);
+signal fifoValidState               :   t_fifo_valid_state;
 signal fifoReg_o, fifoReg           :   t_param_reg;
-signal fifoRoute                    :   t_fifo_route;
+signal fifoRoute1, fifoRoute2       :   t_fifo_route;
 signal fifo1, fifo2                 :   signed(15 downto 0);
 signal fifoValid1, fifoValid2       :   std_logic;
 signal fifo_i, fifo_o               :   std_logic_vector(31 downto 0);
@@ -198,22 +197,22 @@ signal fifoWriteSkip                :   unsigned(15 downto 0);
 
 
 procedure convert_fifo_route(
-    signal val_i    :   in  std_logic_vector(7 downto 0);
+    signal val_i    :   in  std_logic_vector(3 downto 0);
     signal route_o  :   out t_fifo_route) is
 begin
-    if val_i = X"00" then
+    if val_i = X"0" then
         route_o <= adc1;
-    elsif val_i = X"01" then
+    elsif val_i = X"1" then
         route_o <= adc2;
-    elsif val_i = X"02" then
+    elsif val_i = X"2" then
         route_o <= scan;
-    elsif val_i = X"03" then
+    elsif val_i = X"3" then
         route_o <= pid1;
-    elsif val_i = X"04" then
+    elsif val_i = X"4" then
         route_o <= pid2;
-    elsif val_i = X"06" then
+    elsif val_i = X"5" then
         route_o <= act1;
-    elsif val_i = X"07" then
+    elsif val_i = X"6" then
         route_o <= act2;
     else
         route_o <= no_output;
@@ -222,12 +221,15 @@ end convert_fifo_route;
 
 begin
 --
--- Start by parsing parameters
+-- Assign outputs
 --
--- pidRegs1(0) <= std_logic_vector(resize(unsigned(topReg(7 downto 0)),PARAM_WIDTH));
--- pidRegs2(0) <= std_logic_vector(resize(unsigned(topReg(15 downto 8)),PARAM_WIDTH));
+ext_o <= (others => '0');
+m_axis_tdata <= std_logic_vector(resize(act2_o,16)) & std_logic_vector(resize(act1_o,16));
+m_axis_tvalid <= '1';
+--
+-- Parse parameters needed for global control
+--
 scanEnableSet <= topReg(16);
-
 pidEnable1 <= pidRegs1(0)(0);
 pidScanEnable1 <= pidRegs1(0)(2);
 control1_i <= signed(pidRegs1(0)(31 downto 16));
@@ -238,7 +240,7 @@ control2_i <= signed(pidRegs2(0)(31 downto 16));
 -- Begin with a quick-average module for initial filtering
 --
 adcFilt_i(0) <= signed(adcData_i(15 downto 0));
-adcFilt_i(1) <= signed(adcData_i(31 downto 0));
+adcFilt_i(1) <= signed(adcData_i(31 downto 16));
 filtValid_i <= '1';
 InitFilt: QuickAvg
 port map(
@@ -317,56 +319,90 @@ port map(
 --
 -- Routing of signals to memory
 --
-convert_fifo_route(fifoReg(7 downto 0),fifoRoute);
-fifo1 <= adcFilt_o(0) when fifoRoute = adc1 else
-         adcFilt_o(1) when fifoRoute = adc2 else
-         scan_o       when fifoRoute = scan else
-         pid1_o       when fifoRoute = pid1 else
-         pid2_o       when fifoRoute = pid2 else
-         act1_o       when fifoRoute = act1 else
-         act2_o       when fifoRoute = act2 else
+convert_fifo_route(fifoReg(3 downto 0),fifoRoute1);
+fifo1 <= adcFilt_o(0) when fifoRoute1 = adc1 else
+         adcFilt_o(1) when fifoRoute1 = adc2 else
+         scan_o       when fifoRoute1 = scan else
+         pid1_o       when fifoRoute1 = pid1 else
+         pid2_o       when fifoRoute1 = pid2 else
+         act1_o       when fifoRoute1 = act1 else
+         act2_o       when fifoRoute1 = act2 else
          (others => '0');
 
-fifoValid1 <= filtValid_o when fifoRoute = adc1 or fifoRoute = adc2 else
-              scanValid_o when fifoRoute = scan else
-              pidValid1_o;          
+--fifoValid1 <= filtValid_o when fifoRoute1 = adc1 or fifoRoute1 = adc2 else
+--              scanValid_o when fifoRoute1 = scan else
+--              pidValid1_o;          
 
-fifo2 <= adcFilt_o(0) when fifoRoute = adc1 else
-         adcFilt_o(1) when fifoRoute = adc2 else
-         scan_o       when fifoRoute = scan else
-         pid1_o       when fifoRoute = pid1 else
-         pid2_o       when fifoRoute = pid2 else
-         act1_o       when fifoRoute = act1 else
-         act2_o       when fifoRoute = act2 else
+convert_fifo_route(fifoReg(7 downto 4),fifoRoute2);
+fifo2 <= adcFilt_o(0) when fifoRoute2 = adc1 else
+         adcFilt_o(1) when fifoRoute2 = adc2 else
+         scan_o       when fifoRoute2 = scan else
+         pid1_o       when fifoRoute2 = pid1 else
+         pid2_o       when fifoRoute2 = pid2 else
+         act1_o       when fifoRoute2 = act1 else
+         act2_o       when fifoRoute2 = act2 else
          (others => '0');
 
-fifoValid2 <= filtValid_o when fifoRoute = adc1 or fifoRoute = adc2 else
-scanValid_o when fifoRoute = scan else
-pidValid2_o;
+--fifoValid2 <= filtValid_o when fifoRoute2 = adc1 or fifoRoute2 = adc2 else
+--scanValid_o when fifoRoute2 = scan else
+--pidValid2_o;
 --
 -- Combine FIFO data. FIFO inputs are enabled when the scan is going in the
 -- positive direction OR the scan is disabled (as scanPolarity_o = '1')
 --
-fifoValid_i <= (fifoValid1 or fifoValid2) and scanPolarity_o;
+--FIFOValidProc: process(adcclk,aresetn) is
+--begin
+--    if aresetn = '0' then
+--        fifoValidState <= idle;
+--        fifoValid_i <= '0';
+--    elsif rising_edge(adcclk) then
+--        FIFOValidFSM: case(fifoValidState) is
+--            when idle =>
+--                if fifoValid1 = '1' and fifoValid2 = '1' then
+--                    fifoValid_i <= '1';
+--                elsif fifoValid1 = '1' then
+--                    fifoValidState <= wait_for_fifo2;
+--                elsif fifoValid2 = '1' then
+--                    fifoValidState <= wait_for_fifo1;
+--                else
+--                    fifoValid_i <= '0';
+--                end if;
+                
+--            when wait_for_fifo1 =>
+--                if fifoValid1 = '1' then
+--                    fifoValid_i <= '1';
+--                    fifoValidState <= idle;
+--                end if;
+                
+--            when wait_for_fifo2 =>
+--                if fifoValid2 = '1' then
+--                    fifoValid_i <= '1';
+--                    fifoValidState <= idle;
+--                end if;
+                
+--            when others => fifoValidState <= idle;
+--        end case;
+--    end if;
+--end process;
+--fifoValid_i <= (fifoValid1 or fifoValid2) and scanPolarity_o;
 fifo_i <= std_logic_vector(fifo2) & std_logic_vector(fifo1);
 --
 -- Parse FIFO parameters
 --
-fifoWriteSkip <= unsigned(fifoReg(15 downto 0));
-fifoReg_o <= (0 => not(fifo_s.empty), others => '0');
+fifoWriteSkip <= unsigned(fifoReg(23 downto 8));
+fifoReg_o(0) <= not(fifo_s.empty);
+fifoReg_o(1) <= not(scanPolarity_o);
+fifoReg_o(31 downto 2) <= (others => '0');
 fifoReset <= triggers(0);
 
 FIFO: FIFOHandler
-generic map(
-    ENABLE_SKIP => true
-)
 port map(
     wr_clk          =>  adcClk,
     rd_clk          =>  sysClk,
     aresetn         =>  aresetn,
+    regs_i          =>  fifoReg,
+    enable_i        =>  scanPolarity_o,
     data_i          =>  fifo_i,
-    valid_i         =>  fifoValid_i,
-    writeSkip       =>  fifoWriteSkip,
     fifoReset       =>  fifoReset,
     bus_m           =>  fifo_m,
     bus_s           =>  fifo_s
@@ -391,9 +427,9 @@ begin
         bus_s <= INIT_AXI_BUS_SLAVE;
         triggers <= (others => '0');
         topReg <= (others => '0');
-        initFiltReg <= (others => '0');
-        pidRegs1(pidRegs1'length - 1 downto 1) <= (others => (others => '0'));
-        pidRegs2(pidRegs2'length - 1 downto 1) <= (others => (others => '0'));
+        initFiltReg <= X"0000_0002";
+        pidRegs1 <= (others => (others => '0'));
+        pidRegs2 <= (others => (others => '0'));
         scanRegs <= (others => (others => '0'));
         fifo_m <= INIT_FIFO_BUS_MASTER;
         fifoReg <= (others => '0');
@@ -449,10 +485,11 @@ begin
                             --
                             when X"00002C" => rw(bus_m,bus_s,comState,scanRegs(0));
                             when X"000030" => rw(bus_m,bus_s,comState,scanRegs(1));
+                            when X"000034" => rw(bus_m,bus_s,comState,scanRegs(2));
                             --
                             -- FIFO read/write register
                             --
-                            when X"000034" => rw(bus_m,bus_s,comState,fifoReg);
+                            when X"000038" => rw(bus_m,bus_s,comState,fifoReg);
                             --
                             -- If not specified, throw an error
                             --
@@ -465,8 +502,9 @@ begin
                     --
                     when X"01" =>
                         ParamCaseReadOnly: case(bus_m.addr(23 downto 0)) is
-                            when X"000000" => readOnly(bus_m,bus_s,comState,fifoReg_o);
-                            when X"000004" => fifoRead(bus_m,bus_s,comState,fifo_m,fifo_s);
+                            when X"000000" => rw(bus_m,bus_s,comState,triggers);
+                            when X"000004" => readOnly(bus_m,bus_s,comState,fifoReg_o);
+                            when X"000008" => fifoRead(bus_m,bus_s,comState,fifo_m,fifo_s);
                             when others => 
                                 comState <= finishing;
                                 bus_s.resp <= "11";
