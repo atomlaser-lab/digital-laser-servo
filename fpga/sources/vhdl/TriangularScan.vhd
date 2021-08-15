@@ -16,9 +16,10 @@ entity TriangularScan is
         --
         -- Parameter inputs:
         -- 0: (31 downto 16 => scan amplitude, 15 downto 0 => offset)
-        -- 1: (31 downto 16 => step time, 15 downto 0 => step size)
+        -- 1: (31 downto 0) => step size
+        -- 2: (31 downto 0) => step time
         --
-        regs_i      :   in  t_param_reg_array(1 downto 0);
+        regs_i      :   in  t_param_reg_array(2 downto 0);
         
         scan_o      :   out t_dac;              --Output scan data
         polarity_o  :   out std_logic;          --Indicates the scan direction ('0' = negative, '1' = positive)
@@ -44,7 +45,7 @@ begin
 offset <= signed(regs_i(0)(15 downto 0));
 amplitude <= signed(regs_i(0)(31 downto 16));
 stepSize <= resize(signed(regs_i(1)(15 downto 0)),stepSize'length);
-stepTime <= resize(unsigned(regs_i(1)(31 downto 16)),stepTime'length);
+stepTime <= resize(unsigned(regs_i(2)),stepTime'length);
 lowerLimit <= offset - amplitude;
 upperLimit <= offset + amplitude;
 --
@@ -68,7 +69,7 @@ end process;
 --
 -- Define process, and assign scan_o to scan
 --
-scan_o <= scan;
+scan_o <= scan when enable = '1' else offset;
 polarity_o <= polarity;
 ScanProc: process(clk,aresetn) is
 begin
@@ -77,15 +78,7 @@ begin
         polarity <= '1';
         valid_o <= '0';
     elsif rising_edge(clk) then
-        if enable = '0' then
-            --
-            -- When scan is disabled, just output the offset
-            -- Reset the polarity
-            --
-            scan <= offset;
-            polarity <= '1';
-            valid_o <= '0';
-        elsif valid = '1' then
+        if valid = '1' then
             --
             -- When there is a valid reduced clock signal, output a new value
             --

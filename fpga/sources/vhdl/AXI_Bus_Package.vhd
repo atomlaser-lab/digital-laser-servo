@@ -21,6 +21,8 @@ constant AXI_DATA_WIDTH :   natural :=  32;
 --
 subtype t_axi_addr is unsigned(AXI_ADDR_WIDTH-1 downto 0);
 subtype t_axi_data is std_logic_vector(AXI_DATA_WIDTH-1 downto 0);
+type t_axi_addr_array is array(natural range <>) of t_axi_addr;
+type t_axi_data_array is array(natural range <>) of t_axi_data;
 
 --
 -- Defines a data bus controlled by the master
@@ -57,6 +59,9 @@ constant INIT_AXI_BUS_SLAVE     :   t_axi_bus_slave     :=  (data   =>  (others 
                                                              resp   =>  "00");
 constant INIT_AXI_BUS           :   t_axi_bus           :=  (m      =>  INIT_AXI_BUS_MASTER,
                                                              s      =>  INIT_AXI_BUS_SLAVE);
+
+constant NASLV : std_logic_vector(0 downto 1) := (others => '0');                                                             
+function resize ( ARG: std_logic_vector; NEW_SIZE: NATURAL) return std_logic_vector;
 
 procedure rw(
     signal bus_i    :   in      t_axi_bus_master;
@@ -107,6 +112,30 @@ end AXI_Bus_Package;
 --------------------------------------------------------------------------------------------------
 package body AXI_Bus_Package is
 
+function resize ( ARG: std_logic_vector; NEW_SIZE: NATURAL) return std_logic_vector is
+    constant ARG_LEFT:INTEGER:= ARG'length-1;
+    alias XARG: std_logic_vector(ARG_LEFT downto 0) is ARG;
+    variable RESULT: std_logic_vector(NEW_SIZE-1 downto 0) := (others=>'0');
+begin
+    if (NEW_SIZE < 1) then 
+        return NASLV; 
+    end if;
+    if XARG'length = 0 then 
+        return RESULT;
+    end if;
+    if (RESULT'length < ARG'length) then
+        RESULT(RESULT'left downto 0) := XARG(RESULT'left downto 0);
+    else
+        RESULT(RESULT'left downto XARG'left+1) := (others => '0');
+        RESULT(XARG'left downto 0) := XARG;
+    end if;
+    return RESULT;
+end resize;
+
+
+--
+-- Procedures to read and write to AXI bus
+--
 procedure rw(
     signal bus_i    :   in      t_axi_bus_master;
     signal bus_o    :   out     t_axi_bus_slave;

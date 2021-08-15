@@ -6,18 +6,14 @@ use work.CustomDataTypes.all;
 use work.AXI_Bus_Package.all;
 
 entity FIFOHandler is
-    generic(
-        ENABLE_SKIP :   boolean :=  false
-    );
     port(
         wr_clk      :   in  std_logic;
         rd_clk      :   in  std_logic;
         aresetn     :   in  std_logic;
         
+        regs_i      :   in  t_param_reg;
+        enable_i    :   in  std_logic;   
         data_i      :   in  std_logic_vector(FIFO_WIDTH-1 downto 0);
-        valid_i     :   in  std_logic;
-
-        writeSkip   :   in  unsigned(15 downto 0);
         
         fifoReset   :   in  std_logic;
         bus_m       :   in  t_fifo_bus_master;
@@ -41,16 +37,54 @@ COMPONENT FIFO_Continuous
   );
 END COMPONENT;
 
-signal rst      :   std_logic;
-signal count    :   unsigned(writeSkip'length - 1 downto 0);
-signal valid    :   std_logic;
-signal data     :   std_logic_vector(data_i'length - 1 downto 0);
+signal rst, rst1    :   std_logic;
+signal sampleTime   :   unsigned(23 downto 0);
+signal count        :   unsigned(sampleTime'length - 1 downto 0);
+signal startSync    :   std_logic_vector(1 downto 0);
+signal start        :   std_logic;
+signal valid        :   std_logic;
+signal wr_en        :   std_logic;
+signal rstDone      :   std_logic;
+signal data         :   std_logic_vector(data_i'length - 1 downto 0);
+
+signal rstCount     :   unsigned(3 downto 0);
+
+type t_status_local is (idle,counting);
+signal state        :   t_status_local;
 
 begin
 --
+-- Parse registers
+--
+sampleTime <= unsigned(regs_i(31 downto 8));
+--
 -- Generate reset signal
 --
-rst <= not(aresetn) or fifoReset;
+ResetGen: process(wr_clk,aresetn) is
+begin
+    if aresetn = '0' then
+        rstCount <= X"0";
+        rst1 <= '1';
+        rstDone <= '0';
+    elsif rising_edge(wr_clk) then
+        if fifoReset = '1' then
+            rst1 <= '1';
+            rstDone <= '0';
+            rstCount <= X"0";
+        elsif rstCount < 5 then
+            rstCount <= rstCount + 1;
+            rst1 <= '1';
+            rstDone <= '0';
+        elsif rstCount < 10 then
+            rstCount <= rstCount + 1;
+            rstDone <= '0';
+            rst1 <= '0';
+        else
+            rstDone <= '1';
+        end if;
+    end if;
+end process;
+rst <= not(aresetn) or rst1;
 --
 -- Creates a valid output signal when rd_en is high
 --
@@ -67,52 +101,59 @@ begin
     end if;    
 end process;
 --
--- Count out number of inputs to reduce the data that is saved
+-- Detect rising edge of start_i
 --
-SkipGen: if ENABLE_SKIP generate
-    SkipProc: process(wr_clk,aresetn) is
-    begin
-        if aresetn = '0' then
-            count <= (others => '0');
-            valid <= '0';
-            data <= (others => '0');
-        elsif rising_edge(wr_clk) then
-            if writeSkip = 0 then
-                --
-                -- If no skip value is set, pass data and valid signal
-                -- straight through
-                --
-                data <= data_i;
-                valid <= valid_i;
-            else
-                if count = 0 and valid_i = '1' then
-                    --
-                    -- When there is a skip value and a valid value arrives
-                    -- write that value and start a counter
-                    --
+StartEdgeDetect: process(wr_clk,aresetn) is
+begin
+    if aresetn = '0' then
+        startSync <= "00";
+    elsif rising_edge(wr_clk) then
+        startSync <= startSync(0) & enable_i;
+    end if;
+end process;
+--
+-- Start data collection
+--
+AcquisitionProc: process(wr_clk,aresetn) is
+begin
+    if aresetn = '0' then
+        count <= (others => '0');
+        state <= idle;
+        valid <= '0';
+    elsif rising_edge(wr_clk) then
+        AcqCase: case(state) is
+            when idle =>
+                if startSync = "01" and rstDone = '1' then
+                    state <= counting;
+                    count <= (0 => '1',others => '0');
                     data <= data_i;
                     valid <= '1';
-                    count <= (0 => '1', others => '0');
-                elsif count < writeSkip then
-                    --
-                    -- Count upwards to the skip value
-                    --
+                else
+                    valid <= '0';
+                end if;
+                
+            when counting =>
+                if enable_i = '0' or rstDone = '0' then
+                    state <= idle;
+                elsif count < sampleTime then
                     count <= count + 1;
                     valid <= '0';
                 else
-                    --
-                    -- Reset the counter
-                    --
-                    count <= (others => '0');
-                    valid <= '0';
+                    count <= (0 => '1', others => '0');
+                    data <= data_i;
+                    valid <= '1';
                 end if;
-            end if;
-        end if;
-    end process;
-end generate SkipGen;
+                
+            when others => state <= idle;
+        end case;
+    end if;
+end process;
+
+
 --
 -- Instantiate FIFO part
 --
+
 FIFO: FIFO_Continuous
 port map(
     wr_clk      =>  wr_clk,
