@@ -15,10 +15,12 @@ classdef DeviceRegister < handle
     
     methods
         function self = DeviceRegister(addr,conn)
-            self.addr = addr;
-            self.value = uint32(0);
-            if nargin>1
-                self.conn = conn;
+            if nargin > 0
+                self.addr = addr;
+                self.value = uint32(0);
+                if nargin>1
+                    self.conn = conn;
+                end
             end
         end
     
@@ -55,6 +57,28 @@ classdef DeviceRegister < handle
             else
                 for nn=1:numel(self)
                     self(nn).write;
+                end
+            end
+        end
+        
+        function r = getWriteData(self)
+            if numel(self) == 1
+                r = [self.addr,self.value];
+            else
+                r = zeros(numel(self),2);
+                for nn = 1:numel(self)
+                    r(nn,:) = self(nn).getWriteData;
+                end
+            end
+        end
+        
+        function r = getReadData(self)
+            if numel(self) == 1
+                r = self.addr;
+            else
+                r = zeros(numel(self),1);
+                for nn = 1:numel(self)
+                    r(nn,1) = self(nn).getReadData;
                 end
             end
         end

@@ -2,6 +2,7 @@ classdef ConnectionClient < handle
     properties
         client
         host
+        port
     end
     
     properties(SetAccess = protected)
@@ -19,20 +20,26 @@ classdef ConnectionClient < handle
     end
     
     methods
-        function self = ConnectionClient(host)
-            if nargin==1
+        function self = ConnectionClient(host,port)
+            if nargin == 1
                 self.host = host;
+                self.port = self.TCP_PORT;
+            elseif nargin == 2
+                self.host = host;
+                self.port = port;
             else
                 self.host = self.HOST_ADDRESS;
+                self.port = self.TCP_PORT;
             end
             self.initRead;
         end
         
         function open(self)
 %             self.client = tcpclient(self.host,self.TCP_PORT,'Timeout',5,'ConnectTimeout',5);
-            r = instrfindall('RemoteHost',self.host,'RemotePort',self.TCP_PORT);
+            r = instrfindall('RemoteHost',self.host,'RemotePort',self.port);
             if isempty(r)
-                self.client = tcpip(self.host,self.TCP_PORT,'byteOrder','littleEndian');
+                self.client = tcpip(self.host,self.port,'byteOrder','littleEndian');
+%                 self.client = udp(self.host,self.TCP_PORT,'byteOrder','littleEndian');
                 self.client.InputBufferSize = 2^20;
                 fopen(self.client);
             elseif strcmpi(r.Status,'closed')
