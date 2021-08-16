@@ -3,6 +3,7 @@ classdef ConnectionClient < handle
         client
         host
         port
+        keepAlive
     end
     
     properties(SetAccess = protected)
@@ -20,17 +21,25 @@ classdef ConnectionClient < handle
     end
     
     methods
-        function self = ConnectionClient(host,port)
-            if nargin == 1
-                self.host = host;
-                self.port = self.TCP_PORT;
-            elseif nargin == 2
-                self.host = host;
-                self.port = port;
-            else
+        function self = ConnectionClient(host,port,keepAlive)
+            if nargin < 1
                 self.host = self.HOST_ADDRESS;
-                self.port = self.TCP_PORT;
+            else
+                self.host = host;
             end
+            
+            if nargin < 2
+                self.port = self.TCP_PORT;
+            else
+                self.port = port;
+            end
+            
+            if nargin < 3
+                self.keepAlive = false;
+            else
+                self.keepAlive = keepAlive;
+            end
+
             self.initRead;
         end
         
@@ -83,13 +92,19 @@ classdef ConnectionClient < handle
             if numel(data) == 0
                 data = 0;
             end
-            self.open;
+            
+            if ~self.keepAlive || isempty(self.client)
+                self.open;
+            end
+            
             try
                 msg.length = numel(data);
 
                 for nn=1:2:numel(varargin)
                     msg.(varargin{nn}) = varargin{nn+1};
                 end
+                
+                msg.keep_alive = self.keepAlive;
 
                 self.initRead;
                 msg = jsonencode(msg);
@@ -109,7 +124,10 @@ classdef ConnectionClient < handle
                         jj = jj+1;
                     end
                 end
-                self.close
+                
+                if ~self.keepAlive
+                    self.close;
+                end
             catch e
                 self.close;
                 rethrow(e);

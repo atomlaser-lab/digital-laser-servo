@@ -8,6 +8,10 @@ import warnings
 MEM_ADDR = 0x40000000
 
 def write(data,header):
+    if ("debug" in header) and (header["debug"]):
+        response = {"err":False,"errMsg":"Message received","data":[]}
+        return response
+        
     data_o = []
     if header["mode"] == "write":
         for i in range(0,len(data),2):

@@ -88,8 +88,8 @@ classdef LaserServoPID < handle
         
         function [Kp,Ki,Kd] = calculateRealGains(self)
             Kp = self.Kp.value*2^(-self.divisor.value);
-            Ki = self.Ki.value*2^(-self.divisor.value)*self.parent.dt();
-            Kd = self.Kd.value*2^(-self.divisor.value)/self.parent.dt();
+            Ki = self.Ki.value*2^(-self.divisor.value)/self.parent.dt();
+            Kd = self.Kd.value*2^(-self.divisor.value)*self.parent.dt();
         end
         
         function ss = print(self,width)

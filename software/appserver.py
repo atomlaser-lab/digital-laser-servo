@@ -45,11 +45,6 @@ try:
                 try:
                     message.process_events(mask)
                 except Exception:
-                    # print("main: error: exception for",f"{message.addr}:\n{traceback.format_exc()}")
-                    # print("Exception caught")
-                    # print("Exception caught")
-                    # print(message.addr)
-                    # print(traceback.format_exc())
                     print("main: error: exception for {}:\n{}".format(message.addr,traceback.format_exc()))
                     message.close()
 
