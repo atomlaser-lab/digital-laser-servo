@@ -52,19 +52,20 @@ classdef LaserServoScanControl < handle
                 self.duration = T;
             end
             
-            self.stepTime.set(min(0.5*self.duration/1000,self.stepTime.upperLimit));
-            self.stepSize.set(2*self.amplitude.value*self.stepTime.value/(0.5*self.duration));
+            self.stepTime.set(min(0.5*self.duration/200,self.stepTime.upperLimit));
+            self.stepSize.set(2*self.amplitude.get*self.stepTime.get/(0.5*self.duration));
+            
         end
         
         function [t,v] = estimateScan(self)
-            t = 0:self.stepTime.value:(self.duration/2);
-            v = (self.offset.value - self.amplitude.value) + self.stepSize.value*(0:(numel(t) - 1));
+            t = 0:self.stepTime.get:(self.duration/2);
+            v = (self.offset.get - self.amplitude.get) + self.stepSize.get*(0:(numel(t) - 1));
             if self.parent.pid(1).scanEnable.value
-                v = max(v,self.parent.pid(1).lowerLimit.value);
-                v = min(v,self.parent.pid(1).upperLimit.value);
+                v = max(v,self.parent.pid(1).lowerLimit.get);
+                v = min(v,self.parent.pid(1).upperLimit.get);
             elseif self.parent.pid(2).scanEnable.value
-                v = max(v,self.parent.pid(2).lowerLimit.value);
-                v = min(v,self.parent.pid(2).upperLimit.value);
+                v = max(v,self.parent.pid(2).lowerLimit.get);
+                v = min(v,self.parent.pid(2).upperLimit.get);
             end
         end
         

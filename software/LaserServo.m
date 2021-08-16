@@ -9,7 +9,7 @@ classdef LaserServo < handle
     
     properties(SetAccess = immutable)
         conn                %Instance of DPFeedbackClient used for communication with socket server
-        conn2
+%         conn2
         
         log2Avgs            %Log2 of the number of averages on initial filter
         pid                 %PID settings
@@ -53,10 +53,10 @@ classdef LaserServo < handle
             %   server host address HOST
             if numel(varargin) == 1
                 self.conn = ConnectionClient(varargin{1});
-                self.conn2 = ConnectionClient(varargin{1},6667);
+%                 self.conn2 = ConnectionClient(varargin{1},6667);
             else
                 self.conn = ConnectionClient(self.HOST_ADDRESS);
-                self.conn2 = ConnectionClient(self.HOST_ADDRESS,6667);
+%                 self.conn2 = ConnectionClient(self.HOST_ADDRESS,6667);
             end
             
             self.jumpers = 'lv';
@@ -110,7 +110,10 @@ classdef LaserServo < handle
         end
         
         function self = setSampleTime(self)
-            self.sampleTime.set(0.5*self.scan.duration/self.MAX_REAL_TIME_DATA);
+            duration = 2*2*self.scan.amplitude.get/self.scan.stepSize.get*self.scan.stepTime.get;
+            dtt = 0.5*duration/self.MAX_REAL_TIME_DATA;
+            dtt = floor(dtt*self.CLK)/self.CLK;
+            self.sampleTime.set(dtt);
         end
         
         function self = check(self)
@@ -217,8 +220,8 @@ classdef LaserServo < handle
             elseif nargin < 3
                 resetFlag = 0;
             end
-            self.conn2.write(0,'mode','get scan data','numSamples',numSamples,'reset',resetFlag);
-            raw = typecast(self.conn2.recvMessage,'uint8');
+            self.conn.write(0,'mode','get scan data','numSamples',numSamples,'reset',resetFlag);
+            raw = typecast(self.conn.recvMessage,'uint8');
             if strcmpi(self.jumpers,'hv')
                 c = self.CONV_HV;
             elseif strcmpi(self.jumpers,'lv')
