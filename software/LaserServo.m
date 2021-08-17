@@ -39,7 +39,7 @@ classdef LaserServo < handle
         CONV_LV = 1.1851/2^(LaserServo.DAC_WIDTH - 1);
         CONV_HV = 29.3570/2^(LaserServo.DAC_WIDTH - 1);
         
-        FIFO_ROUTE_TABLE = {'adc1','adc2','scan','pid1','pid2','act1','act2'};
+        FIFO_ROUTE_TABLE = {'adc1','adc2','scan','pid1','pid2','out1','out2'};
     end
     
     methods
