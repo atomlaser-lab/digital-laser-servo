@@ -2,19 +2,20 @@ classdef LaserServo < handle
     %LASERSERVO Defines a class for handling control of the laser servo
     %design
     properties
-        jumpers
-        t
-        data
+        jumpers             %Jumper settings, either 'lv' or 'hv'
+        t                   %Time vector for retrieved data
+        data                %Retrieved data, an Nx2 array
     end
     
     properties(SetAccess = immutable)
-        conn                %Instance of DPFeedbackClient used for communication with socket server
-%         conn2
-        
+        conn                %Instance of CONNECTIONCLIENT used for communication with socket server
+        %
+        % All of these are DEVICEPARAMETER objects
+        %
         log2Avgs            %Log2 of the number of averages on initial filter
-        pid                 %PID settings
+        pid                 %PID settings, a 2 element array
         scan                %Scan settings
-        fifoRoute           %Routing settings for FIFO
+        fifoRoute           %Routing settings for FIFO, a 2 element array
         sampleTime          %FIFO sample time
         
     end
@@ -33,63 +34,91 @@ classdef LaserServo < handle
     properties(Constant)
         CLK = 125e6;                    %Clock frequency of the board
         MAX_REAL_TIME_DATA = 4096;      %Maximum number of points to transfer in real-time
-        HOST_ADDRESS = '';              %Default socket server address
-        ADC_WIDTH = 14;
-        DAC_WIDTH = 14;
-        CONV_LV = 1.1851/2^(LaserServo.DAC_WIDTH - 1);
-        CONV_HV = 29.3570/2^(LaserServo.DAC_WIDTH - 1);
+        DEFAULT_HOST = '';              %Default socket server address
+        DEFAULT_PORT = 6666;            %Default port of socket server
+        ADC_WIDTH = 14;                 %Bit width of ADC values
+        DAC_WIDTH = 14;                 %Bit width of DAC values
+        %
+        % Conversion values going from integer values to volts
+        %
+        CONV_ADC_LV = 1.1851/2^(LaserServo.ADC_WIDTH - 1);
+        CONV_ADC_HV = 29.3570/2^(LaserServo.ADC_WIDTH - 1);
+        CONV_DAC = 1.079/2^(LaserServo.ADC_WIDTH - 1);
         
         FIFO_ROUTE_TABLE = {'adc1','adc2','scan','pid1','pid2','out1','out2'};
     end
     
     methods
-        function self = LaserServo(varargin)
+        function self = LaserServo(host,port)
             %LASERSERVO Creates an instance of a LASERSERVO object.  Sets
             %up the registers and parameters as instances of the correct
             %classes with the necessary
             %addressses/registers/limits/functions
             %
-            %   LS = LASERSERVO(HOST) creates an instance with socket
+            %   SELF = LASERSERVO() creates an instance with default host
+            %   and port
+            %
+            %   SELF = LASERSERVO(HOST) creates an instance with socket
             %   server host address HOST
-            if numel(varargin) == 1
-                self.conn = ConnectionClient(varargin{1});
-%                 self.conn2 = ConnectionClient(varargin{1},6667);
+            %
+            %   SELF = LASERSERVO(HOST,PORT) creates an instance with
+            %   socket server host address HOST and port PORT
+            
+            if nargin == 0
+                self.conn = ConnectionClient(self.DEFAULT_HOST,self.DEFAULT_PORT);
+            elseif nargin == 1
+                self.conn = ConnectionClient(host,self.DEFAULT_PORT);
             else
-                self.conn = ConnectionClient(self.HOST_ADDRESS);
-%                 self.conn2 = ConnectionClient(self.HOST_ADDRESS,6667);
+                self.conn = ConnectionClient(host,port);
             end
-            
+            %
+            % Set jumper values
+            %
             self.jumpers = 'lv';
-            
-            
+            %
             % R/W registers
+            %
             self.trigReg = DeviceRegister('0',self.conn);
             self.topReg = DeviceRegister('4',self.conn);
             self.filtReg = DeviceRegister('8',self.conn);
+            %
+            % There are 4 PID registers PER PID
+            %
             self.pidRegs = DeviceRegister.empty;
             for nn = 0:3
                 self.pidRegs(1,nn + 1) = DeviceRegister(hex2dec('0c') + nn*4,self.conn);
                 self.pidRegs(2,nn + 1) = DeviceRegister(hex2dec('1c') + nn*4,self.conn);
             end
-            
+            %
+            % There are 3 scan registers
+            %
             self.scanRegs = DeviceRegister('2C',self.conn);
             self.scanRegs(2) = DeviceRegister('30',self.conn);
             self.scanRegs(3) = DeviceRegister('34',self.conn);
+            %
+            % There is one FIFO register
+            %
             self.fifoReg = DeviceRegister('38',self.conn);
-
-            
-            %Initial filtering
+            % 
+            % Initial filtering
+            %
             self.log2Avgs = DeviceParameter([0,3],self.filtReg)...
                 .setLimits('lower',0,'upper',2^16);
-            %PID settings
+            %
+            % PID settings
+            %
             self.pid = LaserServoPID(self,self.pidRegs(1,:));
             self.pid(2) = LaserServoPID(self,self.pidRegs(2,:));
-            %Scan settings
+            %
+            % Scan settings
+            %
             self.scan = LaserServoScanControl(self,self.scanRegs);
-            %FIFO settings
-            self.fifoRoute = DeviceParameterString([0,3],self.fifoReg)...
+            %
+            % FIFO settings
+            %
+            self.fifoRoute = DeviceParameter([0,3],self.fifoReg)...
                 .setFunctions('to',@(x) convert_fifo_route(x,'int'),'from',@(x) convert_fifo_route(x,'string'));
-            self.fifoRoute(2) = DeviceParameterString([4,7],self.fifoReg)...
+            self.fifoRoute(2) = DeviceParameter([4,7],self.fifoReg)...
                 .setFunctions('to',@(x) convert_fifo_route(x,'int'),'from',@(x) convert_fifo_route(x,'string'));
             self.sampleTime = DeviceParameter([8,23],self.fifoReg)...
                 .setLimits('lower',0,'upper',2^24-1)...
@@ -110,6 +139,13 @@ classdef LaserServo < handle
         end
         
         function self = setSampleTime(self)
+            %SETSAMPLETIME Automatically sets the FIFO sampling time
+            %
+            %   SELF = SETSAMPLETIME(SELF) sets the FIFO sampling time for
+            %   LASERSERVO object SELF.  It uses the scan parameters to
+            %   calculate the time between samples such that samples are
+            %   only acquired during the positive scan ramp
+            
             duration = 2*2*self.scan.amplitude.get/self.scan.stepSize.get*self.scan.stepTime.get;
             dtt = 0.5*duration/self.MAX_REAL_TIME_DATA;
             dtt = floor(dtt*self.CLK)/self.CLK;
@@ -124,6 +160,11 @@ classdef LaserServo < handle
         end
         
         function r = dt(self)
+            %DT Returns the current sampling time based on the filter
+            %settings
+            %
+            %   R = DT(SELF) returns sampling time R for LASERSERVO object
+            %   SELF
             r = 2^(self.log2Avgs.value)/self.CLK;
         end
         
@@ -135,15 +176,16 @@ classdef LaserServo < handle
         function self = upload(self)
             %UPLOAD Uploads register values to the device
             %
-            %   FB = FB.UPLOAD() uploads register values associated with
-            %   object FB
+            %   SELF = UPLOAD(SELF) uploads register values associated with
+            %   object SELF
+            
+            %
+            % Check parameters first
+            %
             self.check;
-%             self.topReg.write;
-%             self.filtReg.write;
-%             self.pidRegs.write;
-%             self.scanRegs.write;
-%             self.fifoReg.write;
-
+            %
+            % Get all write data
+            %
             d = [self.topReg.getWriteData;
                  self.filtReg.getWriteData;
                  self.pidRegs.getWriteData;
@@ -151,21 +193,22 @@ classdef LaserServo < handle
                  self.fifoReg.getWriteData];
             d = d';
             d = d(:);
+            %
+            % Write every register using the same connection
+            %
             self.conn.write(d,'mode','write');
         end
         
         function self = fetch(self)
             %FETCH Retrieves parameter values from the device
             %
-            %   FB = FB.FETCH() retrieves values and stores them in object
-            %   FB
-            %Read registers
-%             self.topReg.read;
-%             self.filtReg.read;
-%             self.pidRegs.read;
-%             self.scanRegs.read;
-%             self.fifoReg.read;
-
+            %   SELF = FETCH(SELF) retrieves values and stores them in
+            %   object SELF
+            
+            %
+            % Get addresses to read from for each register and get data
+            % from device
+            %
             d = [self.topReg.getReadData;
                  self.filtReg.getReadData;
                  self.pidRegs(1,:).getReadData;
@@ -174,19 +217,23 @@ classdef LaserServo < handle
                  self.fifoReg.getReadData];
             self.conn.write(d,'mode','read');
             value = self.conn.recvMessage;
+            %
+            % Parse the received data in the same order as the addresses
+            % were written
+            %
             self.topReg.value = value(1);
             self.filtReg.value = value(2);
             for nn = 1:size(self.pidRegs,2)
                 self.pidRegs(1,nn).value = value(2 + nn);
                 self.pidRegs(2,nn).value = value(6 + nn);
             end
-            
             self.scanRegs(1).value = value(11);
             self.scanRegs(2).value = value(12);
             self.scanRegs(3).value = value(13);
             self.fifoReg.value = value(14);
-
-            %Read parameters
+            %
+            % Read parameters from registers
+            %
             self.log2Avgs.get;
             self.pid.get;
             self.scan.get;
@@ -197,23 +244,27 @@ classdef LaserServo < handle
             
         end
         
-        function self = start(self)
-            %START Sends a software-based start trigger to the device
-            %
-            %   FB = FB.START() sends a start trigger associated with
-            %   object FB
-            
-        end
-        
         function self = reset(self)
-            %RESET Resets the device
+            %RESET Resets the FIFOs on the device
             %
-            %   FB = FB.RESET() resets the device associated with object FB
+            %   SELF = RESET(SELF) resets the FIFOs on the device SELF
             self.trigReg.set(1,[0,0]).write;
             self.trigReg.set(0,[0,0]);
         end
         
         function self = getScanData(self,numSamples,resetFlag)
+            %GETSCANDATA Retrieves the scan data from the device
+            %
+            %   SELF = GETSCANDATA(SELF) retrieves
+            %   LASERSERVO.MAX_REAL_TIME_DATA samples from the device
+            %
+            %   SELF = GETSCANDATA(SELF,N) retrieves N samples from the
+            %   device
+            %
+            %   SELF = GETSCANDATA(__,RESETFLAG) sets the reset flag to
+            %   RESETFLAG, which if true will reset the FIFO before
+            %   collecting data
+            
             if nargin < 2
                 numSamples = self.MAX_REAL_TIME_DATA;
                 resetFlag = 0;
@@ -222,29 +273,51 @@ classdef LaserServo < handle
             end
             self.conn.write(0,'mode','get scan data','numSamples',numSamples,'reset',resetFlag);
             raw = typecast(self.conn.recvMessage,'uint8');
-            if strcmpi(self.jumpers,'hv')
-                c = self.CONV_HV;
-            elseif strcmpi(self.jumpers,'lv')
-                c = self.CONV_LV;
+            %
+            % Convert data to correct units
+            %
+            v = self.convertData(raw);
+            if strcmpi(self.jumpers,'lv')
+                c = self.CONV_ADC_LV;
+            elseif strcmpi(self.jumpers,'hv')
+                c = self.CONV_ADC_HV;
             end
-            self.data = self.convertData(raw,c);
+            %
+            % Loop through channels
+            %
+            for nn = 1:size(v,2)
+                if any(strcmpi(self.fifoRoute(nn).value,{'adc1','adc2'}))
+                    self.data(:,nn) = c*v(:,nn);
+                else
+                    self.data(:,nn) = self.CONV_DAC*v(:,nn);
+                end
+            end
+            %
+            % Create time vectors
+            %
             self.t = self.sampleTime.value*(0:(size(self.data,1)-1));
         end
         
         function r = convert2volts(self,x)
+            %CONVERT2VOLTS Converts an ADC value to volts
+            %
+            %   R = CONVERT2VOLTS(SELF,X) converts value X to volts R
             if strcmpi(self.jumpers,'hv')
-                c = self.CONV_HV;
+                c = self.CONV_ADC_HV;
             elseif strcmpi(self.jumpers,'lv')
-                c = self.CONV_LV;
+                c = self.CONV_ADC_LV;
             end
             r = x*c;
         end
         
         function r = convert2int(self,x)
+            %CONVERT2INT Converts an ADC voltage to integer values
+            %
+            %   R = CONVERT2INT(SELF,X) converts voltage X to integer R
             if strcmpi(self.jumpers,'hv')
-                c = self.CONV_HV;
+                c = self.CONV_ADC_HV;
             elseif strcmpi(self.jumpers,'lv')
-                c = self.CONV_LV;
+                c = self.CONV_ADC_LV;
             end
             r = x/c;
         end
@@ -254,11 +327,11 @@ classdef LaserServo < handle
             strwidth = 25;
             fprintf(1,'LaserServo object with properties:\n');
             fprintf(1,'\t Registers\n');
-            self.topReg.makeString('topReg',strwidth);
-            self.filtReg.makeString('filtReg',strwidth);
-            self.pidRegs.makeString('pidRegs',strwidth);
-            self.scanRegs.makeString('scanRegs',strwidth);
-            self.fifoReg.makeString('fifoReg',strwidth);
+            self.topReg.print('topReg',strwidth);
+            self.filtReg.print('filtReg',strwidth);
+            self.pidRegs.print('pidRegs',strwidth);
+            self.scanRegs.print('scanRegs',strwidth);
+            self.fifoReg.print('fifoReg',strwidth);
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Filtering Parameters\n');
             self.log2Avgs.print('log2Avgs',strwidth,'%d');
@@ -310,6 +383,18 @@ classdef LaserServo < handle
         end
         
         function v = convertData(raw,c)
+            %CONVERTDATA Converts raw data into proper int16/double format
+            %
+            %   V = CONVERTDATA(RAW) Unpacks raw data from uint8 values to
+            %   a pair of double values for each measurement
+            %
+            %   V = CONVERTDATA(RAW,C) uses conversion factor C in the
+            %   conversion
+            
+            if nargin < 2
+                c = 1;
+            end
+            
             Nraw = numel(raw);
             d = zeros(Nraw/4,2,'int16');
             
@@ -327,6 +412,12 @@ classdef LaserServo < handle
 end
 
 function r = convert_fifo_route(x,method)
+%CONVERT_FIFO_ROUTE Converts the FIFO routing string to an integer value
+%and vice versa
+%
+%   R = CONVERT_FIFO_ROUTE(X,'int') converts string X into an integer R
+%
+%   R = CONVERT_FIFO_ROUTE(X,'string') converts integer X into string R
 
 if strcmpi(method,'int')
     for nn = 1:numel(LaserServo.FIFO_ROUTE_TABLE)

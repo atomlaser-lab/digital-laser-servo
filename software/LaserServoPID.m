@@ -3,24 +3,30 @@ classdef LaserServoPID < handle
     %laser servo
     
     properties(SetAccess = immutable)
-        Kp
-        Ki
-        Kd
-        divisor
-        polarity
-        enable
-        scanEnable
-        control
-        lowerLimit
-        upperLimit
+        Kp              %Proportional gain value
+        Ki              %Integral gain value
+        Kd              %Derivative gain value
+        divisor         %Overall divisor for gain values to convert to fractions
+        polarity        %Polarity of PID module
+        enable          %Enable/disable PID module
+        scanEnable      %Enable scan of output
+        control         %Control/set-point of the module
+        lowerLimit      %Lower output limit for the module
+        upperLimit      %Upper output limit for the module
     end
     
     properties(SetAccess = protected)
-        parent
+        parent          %Parent object
     end
     
     methods
         function self = LaserServoPID(parent,regs)
+            %LASERSERVOPID Creates an instance of the class
+            %
+            %   SELF = LASERSERVOPID(PARENT,REGS) Creates instance SELF
+            %   with parent object PARENT and associated with registers
+            %   REGS
+            
             self.parent = parent;
             
             self.enable = DeviceParameter([0,0],regs(1))...
@@ -42,13 +48,18 @@ classdef LaserServoPID < handle
                 .setLimits('lower',0,'upper',2^16-1);
             self.lowerLimit = DeviceParameter([0,15],regs(4),'int16')...
                 .setLimits('lower',-1,'upper',1)...
-                .setFunctions('to',@(x) self.parent.convert2int(x),'from',@(x) self.parent.convert2volts(x));
+                .setFunctions('to',@(x) x/self.parent.CONV_DAC,'from',@(x) x*self.parent.CONV_DAC);
             self.upperLimit = DeviceParameter([16,31],regs(4),'int16')...
                 .setLimits('lower',-1,'upper',1)...
-                .setFunctions('to',@(x) self.parent.convert2int(x),'from',@(x) self.parent.convert2volts(x));
+                .setFunctions('to',@(x) x/self.parent.CONV_DAC,'from',@(x) x*self.parent.CONV_DAC);
         end
         
         function self = setDefaults(self)
+            %SETDEFAULTS Sets the default values for the module
+            %
+            %   SELF = SETDEFAULTS(SELF) sets the default values of object
+            %   SELF
+            
             if numel(self) > 1
                 for nn = 1:numel(self)
                     self(nn).setDefaults;
@@ -68,6 +79,11 @@ classdef LaserServoPID < handle
         end
         
         function self = get(self)
+            %GET Retrieves parameter values from associated registers
+            %
+            %   SELF = GET(SELF) Retrieves values for parameters associated
+            %   with object SELF
+            
             if numel(self) > 1
                 for nn = 1:numel(self)
                     self(nn).get;
@@ -87,12 +103,24 @@ classdef LaserServoPID < handle
         end
         
         function [Kp,Ki,Kd] = calculateRealGains(self)
+            %CALCULATEREALGAINS Calculates the "real",
+            %continuous-controller equivalent gains
+            %
+            %   [Kp,Ki,Kd] = CALCULATEREALGAINS(SELF) Calculates the real
+            %   gains Kp, Ki, and Kd using the set DIVISOR value and the
+            %   parent object's sampling interval
+            
             Kp = self.Kp.value*2^(-self.divisor.value);
             Ki = self.Ki.value*2^(-self.divisor.value)/self.parent.dt();
             Kd = self.Kd.value*2^(-self.divisor.value)*self.parent.dt();
         end
         
         function ss = print(self,width)
+            %PRINT Prints a string representing the object
+            %
+            %   S = PRINT(SELF,WIDTH) returns a string S representing the
+            %   object SELF with label width WIDTH.  If S is not requested,
+            %   prints it to the command line
             s{1} = self.enable.print('Enable',width,'%d');
             s{2} = self.polarity.print('Polarity',width,'%d');
             s{3} = self.scanEnable.print('Scan Enable',width,'%d');
@@ -111,6 +139,12 @@ classdef LaserServoPID < handle
             if nargout == 0
                 fprintf(1,ss);
             end
+        end
+        
+        function disp(self)
+            %DISP Displays the object properties
+            disp('LaserServoPID object with properties:');
+            disp(self.print(25));
         end
         
     end
