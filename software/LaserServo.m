@@ -129,7 +129,7 @@ classdef LaserServo < handle
         function self = setDefaults(self,varargin)
             %SETDEFAULTS Sets parameter values to their defaults
             %
-            %   FB = FB.SETDEFAULTS() sets default values for FB
+            %   SELF = SETDEFAULTS(SELF) sets default values for SELF
             self.log2Avgs.set(4);
             self.pid.setDefaults;
             self.scan.setDefaults;
@@ -169,6 +169,8 @@ classdef LaserServo < handle
         end
         
         function self = autoset(self)
+            %AUTOSET Automatically sets scan step parameters and FIFO
+            %sample times
             self.scan.setScanSteps;
             self.setSampleTime;
         end

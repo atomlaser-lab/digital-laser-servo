@@ -343,48 +343,7 @@ fifo2 <= adcFilt_o(0) when fifoRoute2 = adc1 else
          act2_o       when fifoRoute2 = act2 else
          (others => '0');
 
---fifoValid2 <= filtValid_o when fifoRoute2 = adc1 or fifoRoute2 = adc2 else
---scanValid_o when fifoRoute2 = scan else
---pidValid2_o;
---
--- Combine FIFO data. FIFO inputs are enabled when the scan is going in the
--- positive direction OR the scan is disabled (as scanPolarity_o = '1')
---
---FIFOValidProc: process(adcclk,aresetn) is
---begin
---    if aresetn = '0' then
---        fifoValidState <= idle;
---        fifoValid_i <= '0';
---    elsif rising_edge(adcclk) then
---        FIFOValidFSM: case(fifoValidState) is
---            when idle =>
---                if fifoValid1 = '1' and fifoValid2 = '1' then
---                    fifoValid_i <= '1';
---                elsif fifoValid1 = '1' then
---                    fifoValidState <= wait_for_fifo2;
---                elsif fifoValid2 = '1' then
---                    fifoValidState <= wait_for_fifo1;
---                else
---                    fifoValid_i <= '0';
---                end if;
-                
---            when wait_for_fifo1 =>
---                if fifoValid1 = '1' then
---                    fifoValid_i <= '1';
---                    fifoValidState <= idle;
---                end if;
-                
---            when wait_for_fifo2 =>
---                if fifoValid2 = '1' then
---                    fifoValid_i <= '1';
---                    fifoValidState <= idle;
---                end if;
-                
---            when others => fifoValidState <= idle;
---        end case;
---    end if;
---end process;
---fifoValid_i <= (fifoValid1 or fifoValid2) and scanPolarity_o;
+
 fifo_i <= std_logic_vector(fifo2) & std_logic_vector(fifo1);
 --
 -- Parse FIFO parameters
