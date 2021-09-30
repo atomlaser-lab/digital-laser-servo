@@ -1,6 +1,6 @@
 # Red Pitaya Laser Servo
 
-This project implements a digital two-channel laser servo using a Red Pitaya/STEMlab-14 development board in a single-input multiple-output (SIMO) configuration.  An error signal is provided to the device via the 'IN1' SMA, and this is then directed to two indepedently controlled PID controllers.  The outputs of the two PID controllers are then routed to the ports 'OUT1' and 'OUT2' which can then be connected to the desired laser inputs such as piezo and current drivers.  
+This project implements a digital two-channel laser servo using a Red Pitaya/STEMlab-14 development board in a single-input multiple-output (SIMO) configuration.  An error signal can be provided to either the 'IN1' or 'IN2' SMA connectors, and this is then directed to two indepedently controlled PID controllers.  The outputs of the two PID controllers are then routed to the ports 'OUT1' and 'OUT2' which can then be connected to the desired laser inputs such as piezo and current drivers.  
 
 In order to position the laser frequency within the capture range of the error signal a built-in scan generator can be enabled and its range and offset changed by the user.  This scan can be added internally to the output of either of the PID controllers.  When either PID controller is enabled, the scan is automatically disabled but the offset of the scan is still added to the relevant controller so that the laser frequency starts the lock within the capture range of the error signal.  In order to minimize mode-hops in the laser, the scan is implemented as a symmetrical triangle waveform.
 
@@ -96,7 +96,7 @@ ControlGUI(<IP Address>);
 ```
 if you don't want to have the object representing your device in your workspace.  This should start the GUI, and the latter command will also fetch current settings automatically.
 
-An example image of the GUI is shown below.
+An example image of the GUI is shown below where the red trace (ADC2) shows a saturated absorption spectroscopy signal of the D2 F = 2 -> F' transition in Rb-87, and the blue trace (ADC1) shows the modulation-transfer spectroscopy signal.
 
 ![Example GUI](images/gui-example.png)
 
@@ -110,7 +110,7 @@ A simplified diagram of the FPGA logic is shown below.
 
 <img src="images/schematic.png" height="400"/>
 
-Red text indicates locations where signals can be tapped to store in the FIFOs.  Below is a description of the different modules and their settings
+Red text indicates locations where signals can be tapped to store in the FIFOs.  Below is a description of the different modules and their settings.
 
 ## Filter
 
@@ -118,11 +118,13 @@ The initial filter is used to reduce the incoming data to a rate that can be eas
 
 ## Data Collection
 
-This allows the user to select at what points data should be stored in the FIFO buffer for later retrieval.  Locations where the data streams can be tapped are shown in the previous diagram in red.
+This allows the user to select at what points data should be stored in the FIFO buffer for later retrieval.  Locations where the data streams can be tapped are shown in the previous diagram in red.  Additionally, the user can select which ADC is recording the error signal.
 
 ## Scan Control
 
 The scan is a symmetric triangular waveform which can be specified by its offset, amplitude, and scan duration (period).  The scan can be enabled or disabled using the sliding switch on the top right.  This setting is ignored when either PID is engaged.  You can also set which output/PID the scan should be routed to with the selection box.  Depending on which PID the scan is routed to, it is clipped by the PID output limits.  The scan offset is *always* added the PID output to which the scan is routed, so that the user can center the error signal on the display, corresponding to the scan being at the offset value, and then lock the laser by switch the relevant PID controller to "Enabled".
+
+When the x-axis plot display is set to "Volts", you can click on the plot to set the scan offset to that value automatically.  This should aid in locking to a transition.
 
 ## PID 1 & 2
 
@@ -132,3 +134,7 @@ Upper and lower limits to the PID outputs can be set, and they cannot exceed +/-
 
 
 
+# TODO
+
+ - Implement 2 scan modules for the two controllers, add logic for 2 SISO controllers as well as 1 SIMO controller
+ - Add CIC filter
