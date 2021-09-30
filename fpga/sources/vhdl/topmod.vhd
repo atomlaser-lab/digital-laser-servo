@@ -73,19 +73,18 @@ component PID_Controller is
 		control_i	:	in 	t_adc;										--Control signal
 		measure_i	:	in	t_adc;										--Measurement signal
 		measValid_i	:	in	std_logic;									--Signal that new measurement is valid.
-		scan_i		:	in	t_dac;
-		scanValid_i	:	in	std_logic;
+		scan_i		:	in	t_dac;										--Input scan value
+		scanValid_i	:	in	std_logic;									--Signal that a new scan value is valid
 		--
 		-- Parameter inputs:
-		-- 0: (0 => enable, 1 => polarity)
-		-- 1: (31 downto 16 => Ki, 15 downto 0 => Kp)
-		-- 2: (31 downto 16 => divisor, 15 downto 0 => Kd)
-		-- 3: (31 downto 16 => upper limit, 15 downto 0 => lower limit)
-		regs_i		:	in	t_param_reg_array(3 downto 0);				--Parameter inputs
+		-- 0: (0 => enable, polarity => 1)
+		-- 1: 8 bit values (divisor, Kd, Ki, Kp)
+		-- 2: (31 downto 16 => upper limit, 15 downto 0 => lower limit)
+		--
+		regs_i		:	in	t_param_reg_array(2 downto 0);
 		--
 		-- Outputs
 		--
-		error_o		:	out	t_adc;										--Output error signal (debugging)
 		pid_o		:	out t_dac;										--Actuator output from PID (debugging)
 		act_o		:	out t_dac;										--Output actuator signal
 		valid_o		:	out std_logic									--Indicates act_o is valid
@@ -140,6 +139,7 @@ signal reset                :   std_logic;
 --
 signal triggers             :   t_param_reg                     :=  (others => '0');
 signal topReg               :   t_param_reg;
+signal inputSignalSelect    :   std_logic;
 --
 -- Initial filter signals
 --
@@ -150,7 +150,7 @@ signal filtValid_i, filtValid_o     :   std_logic;
 --
 -- PID 1 settings and signals
 --
-signal pidRegs1                     :   t_param_reg_array(3 downto 0);
+signal pidRegs1                     :   t_param_reg_array(2 downto 0);
 signal pidEnable1, pidScanEnable1   :   std_logic;
 signal control1_i, measure1_i       :   t_adc;
 signal scan1_i                      :   t_dac;
@@ -161,7 +161,7 @@ signal pidValid1_o                  :   std_logic;
 --
 -- PID 2 settings and signals
 --
-signal pidRegs2                     :   t_param_reg_array(3 downto 0);
+signal pidRegs2                     :   t_param_reg_array(2 downto 0);
 signal pidEnable2, pidScanEnable2   :   std_logic;
 signal control2_i, measure2_i       :   t_adc;
 signal scan2_i                      :   t_dac;
@@ -193,30 +193,30 @@ signal fifoValid_i                  :   std_logic;
 signal fifoReset, fifoEnable        :   std_logic;
 signal fifo_m                       :   t_fifo_bus_master;
 signal fifo_s                       :   t_fifo_bus_slave;
-signal fifoWriteSkip                :   unsigned(15 downto 0);
 
-
-procedure convert_fifo_route(
-    signal val_i    :   in  std_logic_vector(3 downto 0);
-    signal route_o  :   out t_fifo_route) is
+function convert_fifo_route(s : std_logic_vector(3 downto 0)) return t_fifo_route is
+--    variable s      :   std_logic_vector(3 downto 0);
+    variable result :   t_fifo_route;
 begin
-    if val_i = X"0" then
-        route_o <= adc1;
-    elsif val_i = X"1" then
-        route_o <= adc2;
-    elsif val_i = X"2" then
-        route_o <= scan;
-    elsif val_i = X"3" then
-        route_o <= pid1;
-    elsif val_i = X"4" then
-        route_o <= pid2;
-    elsif val_i = X"5" then
-        route_o <= act1;
-    elsif val_i = X"6" then
-        route_o <= act2;
+--    s := val_i(3 downto 0);
+    if s = X"0" then
+        result := adc1;
+    elsif s = X"1" then
+        result := adc2;
+    elsif s = X"2" then
+        result := scan;
+    elsif s = X"3" then
+        result := pid1;
+    elsif s = X"4" then
+        result := pid2;
+    elsif s = X"5" then
+        result := act1;
+    elsif s = X"6" then
+        result := act2;
     else
-        route_o <= no_output;
+        result := no_output;
     end if;
+    return result;
 end convert_fifo_route;
 
 begin
@@ -229,7 +229,10 @@ m_axis_tvalid <= '1';
 --
 -- Parse parameters needed for global control
 --
-scanEnableSet <= topReg(16);
+scanEnableSet <= topReg(2);
+inputSignalSelect <= topReg(0);
+
+-- PID registers
 pidEnable1 <= pidRegs1(0)(0);
 pidScanEnable1 <= pidRegs1(0)(2);
 control1_i <= signed(pidRegs1(0)(31 downto 16));
@@ -269,7 +272,7 @@ scanEnable_i <= scanEnableSet and not(pidEnable1 or pidEnable2);
 --
 -- Define PID 1 signals
 --
-measure1_i <= adcFilt_o(0);
+measure1_i <= adcFilt_o(0) when inputSignalSelect = '0' else adcFilt_o(1);
 measValid1_i <= filtValid_o;
 scanValid1_i <= scanValid_o and pidScanEnable1;
 scan1_i <= scan_o when pidScanEnable1 = '1' else (others => '0');
@@ -286,7 +289,6 @@ port map(
     scan_i      =>  scan1_i,
     scanValid_i =>  scanValid1_i,
     regs_i      =>  pidRegs1,
-    error_o     =>  error1_o,
     pid_o       =>  pid1_o,
     act_o       =>  act1_o,
     valid_o     =>  pidValid1_o
@@ -294,7 +296,7 @@ port map(
 --
 -- Define PID 2 signals
 --
-measure2_i <= adcFilt_o(0);
+measure2_i <= adcFilt_o(0) when inputSignalSelect = '0' else adcFilt_o(1);
 measValid2_i <= filtValid_o;
 scanValid2_i <= scanValid_o and pidScanEnable2;
 scan2_i <= scan_o when pidScanEnable2 = '1' else (others => '0');
@@ -311,7 +313,6 @@ port map(
     scan_i      =>  scan2_i,
     scanValid_i =>  scanValid2_i,
     regs_i      =>  pidRegs2,
-    error_o     =>  error2_o,
     pid_o       =>  pid2_o,
     act_o       =>  act2_o,
     valid_o     =>  pidValid2_o
@@ -319,7 +320,7 @@ port map(
 --
 -- Routing of signals to memory
 --
-convert_fifo_route(fifoReg(3 downto 0),fifoRoute1);
+fifoRoute1 <= convert_fifo_route(fifoReg(3 downto 0));
 fifo1 <= adcFilt_o(0) when fifoRoute1 = adc1 else
          adcFilt_o(1) when fifoRoute1 = adc2 else
          scan_o       when fifoRoute1 = scan else
@@ -327,13 +328,9 @@ fifo1 <= adcFilt_o(0) when fifoRoute1 = adc1 else
          pid2_o       when fifoRoute1 = pid2 else
          act1_o       when fifoRoute1 = act1 else
          act2_o       when fifoRoute1 = act2 else
-         (others => '0');
+         (others => '0');        
 
---fifoValid1 <= filtValid_o when fifoRoute1 = adc1 or fifoRoute1 = adc2 else
---              scanValid_o when fifoRoute1 = scan else
---              pidValid1_o;          
-
-convert_fifo_route(fifoReg(7 downto 4),fifoRoute2);
+fifoRoute2 <= convert_fifo_route(fifoReg(7 downto 4));
 fifo2 <= adcFilt_o(0) when fifoRoute2 = adc1 else
          adcFilt_o(1) when fifoRoute2 = adc2 else
          scan_o       when fifoRoute2 = scan else
@@ -348,7 +345,6 @@ fifo_i <= std_logic_vector(fifo2) & std_logic_vector(fifo1);
 --
 -- Parse FIFO parameters
 --
-fifoWriteSkip <= unsigned(fifoReg(23 downto 8));
 fifoReg_o(0) <= not(fifo_s.empty);
 fifoReg_o(1) <= not(scanPolarity_o);
 fifoReg_o(31 downto 2) <= (others => '0');
@@ -431,14 +427,12 @@ begin
                             when X"00000C" => rw(bus_m,bus_s,comState,pidRegs1(0));
                             when X"000010" => rw(bus_m,bus_s,comState,pidRegs1(1));
                             when X"000014" => rw(bus_m,bus_s,comState,pidRegs1(2));
-                            when X"000018" => rw(bus_m,bus_s,comState,pidRegs1(3));
                             --
                             -- PID 2 registers
                             --
                             when X"00001C" => rw(bus_m,bus_s,comState,pidRegs2(0));
                             when X"000020" => rw(bus_m,bus_s,comState,pidRegs2(1));
                             when X"000024" => rw(bus_m,bus_s,comState,pidRegs2(2));
-                            when X"000028" => rw(bus_m,bus_s,comState,pidRegs2(3));
                             --
                             -- Scan registers
                             --

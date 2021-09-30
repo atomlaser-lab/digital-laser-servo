@@ -12,6 +12,7 @@ classdef LaserServo < handle
         %
         % All of these are DEVICEPARAMETER objects
         %
+        inputSelect         %Single bit selector for which ADC to use as error signal
         log2Avgs            %Log2 of the number of averages on initial filter
         pid                 %PID settings, a 2 element array
         scan                %Scan settings
@@ -82,10 +83,10 @@ classdef LaserServo < handle
             self.topReg = DeviceRegister('4',self.conn);
             self.filtReg = DeviceRegister('8',self.conn);
             %
-            % There are 4 PID registers PER PID
+            % There are 3 PID registers PER PID
             %
             self.pidRegs = DeviceRegister.empty;
-            for nn = 0:3
+            for nn = 0:2
                 self.pidRegs(1,nn + 1) = DeviceRegister(hex2dec('0c') + nn*4,self.conn);
                 self.pidRegs(2,nn + 1) = DeviceRegister(hex2dec('1c') + nn*4,self.conn);
             end
@@ -99,6 +100,12 @@ classdef LaserServo < handle
             % There is one FIFO register
             %
             self.fifoReg = DeviceRegister('38',self.conn);
+            %
+            % Input selector and top-level settings
+            %
+            self.inputSelect = DeviceParameter([0,0],self.topReg)...
+                .setLimits('lower',1,'upper',2)...
+                .setFunctions('to',@(x) x - 1,'from',@(x) x + 1);
             % 
             % Initial filtering
             %
@@ -130,6 +137,7 @@ classdef LaserServo < handle
             %SETDEFAULTS Sets parameter values to their defaults
             %
             %   SELF = SETDEFAULTS(SELF) sets default values for SELF
+            self.inputSelect.set(1);
             self.log2Avgs.set(4);
             self.pid.setDefaults;
             self.scan.setDefaults;
@@ -227,15 +235,16 @@ classdef LaserServo < handle
             self.filtReg.value = value(2);
             for nn = 1:size(self.pidRegs,2)
                 self.pidRegs(1,nn).value = value(2 + nn);
-                self.pidRegs(2,nn).value = value(6 + nn);
+                self.pidRegs(2,nn).value = value(5 + nn);
             end
-            self.scanRegs(1).value = value(11);
-            self.scanRegs(2).value = value(12);
-            self.scanRegs(3).value = value(13);
-            self.fifoReg.value = value(14);
+            self.scanRegs(1).value = value(9);
+            self.scanRegs(2).value = value(10);
+            self.scanRegs(3).value = value(11);
+            self.fifoReg.value = value(12);
             %
             % Read parameters from registers
             %
+            self.inputSelect.get;
             self.log2Avgs.get;
             self.pid.get;
             self.scan.get;
@@ -297,7 +306,7 @@ classdef LaserServo < handle
             %
             % Create time vectors
             %
-            self.t = self.sampleTime.value*(0:(size(self.data,1)-1));
+            self.t = self.sampleTime.value*(0:(size(self.data,1)-1))';
         end
         
         function r = convert2volts(self,x)

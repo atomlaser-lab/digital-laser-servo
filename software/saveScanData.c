@@ -26,6 +26,7 @@ int main(int argc, char **argv)
   uint32_t tmp, fifoStatus;
   uint32_t *data;
   uint8_t  resetFlag = 0;
+  uint8_t saveType = 2;
   FILE *ptr;
 
   clock_t start, stop;
@@ -34,13 +35,16 @@ int main(int argc, char **argv)
    * Parse the input arguments
    */
   int c;
-  while ((c = getopt(argc,argv,"n:r")) != -1) {
+  while ((c = getopt(argc,argv,"n:rt:")) != -1) {
     switch (c) {
       case 'n':
         numSamples = atoi(optarg);
         break;
-     case 'r':
+      case 'r':
         resetFlag = 1;
+        break;
+      case 't':
+        saveType = atoi(optarg);
         break;
 
       case '?':
@@ -60,10 +64,15 @@ int main(int argc, char **argv)
   /*
    * Allocate memory
    */
-  data = (uint32_t *) malloc(numSamples * sizeof(uint32_t));
-  if (!data) {
-    printf("Error allocating memory");
-    return -1;
+  if (saveType != 0) {
+    //Clear file and open for writing if saving to file directly
+    ptr = fopen("saved-scan-data.bin","wb");
+  } else {
+    data = (uint32_t *) malloc(numSamples * sizeof(uint32_t));
+    if (!data) {
+      printf("Error allocating memory");
+      return -1;
+    }
   }
   /*
    * This returns a file identifier corresponding to the memory, and allows for reading and writing.  O_RDWR is just a constant
@@ -92,16 +101,34 @@ int main(int argc, char **argv)
   /*
    * Read data up to numSamples
    */
-  for (i = 0;i < numSamples;i++) {
-    *(data + i) = *((uint32_t *)(cfg  + FIFO_DATA_OFFSET));
+  if (saveType != 2) {
+    for (i = 0;i < numSamples;i++) {
+      *(data + i) = *((uint32_t *)(cfg  + FIFO_DATA_OFFSET));
+    }
+  } else {
+    for (i = 0;i < numSamples;i++) {
+        tmp = *((uint32_t *)(cfg + FIFO_DATA_OFFSET));
+        fwrite(&tmp,4,1,ptr);
+    }
   }
+  
   /*
    * Print data to command line - this is used to pass data to Python server
    */
-  for (i = 0;i < numSamples;i++) {
+  if (saveType == 0) {
+    for (i = 0;i < numSamples;i++) {
       printf("%08x\n",*(data + i));
+    }
+    free(data); //Frees up the memory allocated to data
+  } else if (saveType == 1) {
+    fwrite(data,4,(size_t)(numSamples),ptr);
+    fclose(ptr);
+    free(data);
+  } else {
+    fclose(ptr);
   }
-  free(data); //Frees up the memory allocated to data
+  
+  //Resets the FIFO
   *((uint32_t *)(cfg + 0)) = 1;
   //Unmap cfg from pointing to the previous location in memory
   munmap(cfg, MAP_SIZE);

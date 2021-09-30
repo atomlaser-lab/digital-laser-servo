@@ -30,7 +30,7 @@ type t_dac_array is array(NUM_DACS - 1 downto 0) of t_dac;
 --
 -- Defines PID gain types
 --
-constant PID_WIDTH          :   natural :=  16;
+constant PID_WIDTH          :   natural :=  8;
 
 --
 -- Defines AXI address and data widths
@@ -147,10 +147,28 @@ end record t_module_status;
 constant INIT_MODULE_STATUS     :   t_module_status :=  (started    =>  '0',
                                                          running    =>  '0',
                                                          done       =>  '0');
+
+function to_slv_u(ARG   :   integer; SZ :   natural) return std_logic_vector;
+function to_slv_s(ARG   :   integer; SZ :   natural) return std_logic_vector;
+
 end CustomDataTypes;
 
 --------------------------------------------------------------------------------------------------
 --------------------------------------------------------------------------------------------------
 package body CustomDataTypes is
+
+function to_slv_u(ARG : integer; SZ : natural) return std_logic_vector is
+    variable RESULT :   std_logic_vector(SZ - 1 downto 0);
+begin
+    RESULT  :=  std_logic_vector(to_unsigned(ARG,SZ));
+    return RESULT;
+end to_slv_u;
+        
+function to_slv_s(ARG : integer; SZ : natural) return std_logic_vector is
+    variable RESULT :   std_logic_vector(SZ - 1 downto 0);
+begin
+    RESULT  :=  std_logic_vector(to_signed(ARG,SZ));
+    return RESULT;
+end to_slv_s;  
 
 end CustomDataTypes;
