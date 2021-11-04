@@ -100,7 +100,7 @@ An example image of the GUI is shown below where the red trace (ADC2) shows a sa
 
 ![Example GUI](images/gui-example.png)
 
-There are obviously many parameters that can be changed regarding the device and the GUI.  Focussing only on those related to the GUI, under 'Application Settings', if you want to see continuous updates of the data, switch the toggle switch 'Retrieve scan data' to 'On' and it will automatically retrieve data from the socket server for you and automatically upload the current settings to the device.  The lag in the update is due to the nature of the TCP/IP connetion, so changing the 'Plot Update Time' to anything shorter than 0.1 s will not improve the bandwidth of the display.
+There are obviously many parameters that can be changed regarding the device and the GUI.  Focusing only on those related to the GUI, under 'Application Settings', if you want to see continuous updates of the data, switch the toggle switch 'Retrieve scan data' to 'On' and it will automatically retrieve data from the socket server for you and automatically upload the current settings to the device.  The lag in the update is due to the nature of the TCP/IP connection, so changing the 'Plot Update Time' to anything shorter than 0.1 s will not improve the bandwidth of the display.
 
 The plot display can be changed using the settings under 'Application Settings', and these should be straightforward.  When 'Retrieve scan data' is set to 'Off', you can use the 'Upload' button to upload the current settings to the device, 'Fetch' to fetch the device's settings, and 'Fetch Data' to fetch the most recent data from the device.  Note that if you make a change to the settings and upload them, and then fetch the data, that data will not reflect your changes - you will need to fetch the data a second time.
 
@@ -114,7 +114,7 @@ Red text indicates locations where signals can be tapped to store in the FIFOs. 
 
 ## Filter
 
-The initial filter is used to reduce the incoming data to a rate that can be easily handled in the FPGA without pipelining, and it also improves the signal-to-noise ratio.  This filter is implemented as an averaging and decimating filter.  It takes the two raw ADC data streams and averages them in windows that have widths given by `2^(log2Avgs)` where `log2Avgs` is an integer value.  This reduces the sample rate by a factor of `2^(log2Avgs)`, and in the GUI this is displayed by the read-only fields `dt` and `BW`.  Due to time delays in the PID modules, this value should be 3 or larger (for a factor of 8 decimation at least).  
+The initial filter is used to reduce the incoming data to a rate that can be easily handled in the FPGA without pipelining, and it also improves the signal-to-noise ratio.  This filter is implemented as an averaging and decimating filter.  It takes the two raw ADC data streams and averages them in windows that have widths given by `2^(log2Avgs)` where `log2Avgs` is an integer value.  This reduces the sample rate by a factor of `2^(log2Avgs)`, and in the GUI this is displayed by the read-only fields `dt` and `BW`.
 
 ## Data Collection
 
