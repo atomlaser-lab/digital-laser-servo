@@ -11,7 +11,7 @@ entity FIFOHandler is
         rd_clk      :   in  std_logic;
         aresetn     :   in  std_logic;
         
-        regs_i      :   in  t_param_reg;
+        sampleTime_i:   in  std_logic_vector(23 downto 0);
         enable_i    :   in  std_logic;   
         data_i      :   in  std_logic_vector(FIFO_WIDTH-1 downto 0);
         
@@ -56,7 +56,7 @@ begin
 --
 -- Parse registers
 --
-sampleTime <= unsigned(regs_i(31 downto 8));
+sampleTime <= unsigned(sampleTime_i);
 --
 -- Generate reset signal
 --

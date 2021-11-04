@@ -7,4 +7,6 @@
 #
 # Vivado files
 #
-
+*.jou
+*.log
+*.str

@@ -12,10 +12,12 @@ classdef LaserServo < handle
         %
         % All of these are DEVICEPARAMETER objects
         %
-        inputSelect         %Single bit selector for which ADC to use as error signal
+        inputSelect         %2-bit selector for what signal to use for locking
+        outputSelect        %2-bit selector for what outputs to generate
         log2Avgs            %Log2 of the number of averages on initial filter
         pid                 %PID settings, a 2 element array
         scan                %Scan settings
+        lockin              %Lock-in settings
         fifoRoute           %Routing settings for FIFO, a 2 element array
         sampleTime          %FIFO sample time
         
@@ -29,6 +31,8 @@ classdef LaserServo < handle
         scanRegs            %Registers for scan control
         
         fifoReg             %Register for FIFO
+        
+        lockinRegs          %Registers for lock-in detection
         
     end
     
@@ -46,7 +50,7 @@ classdef LaserServo < handle
         CONV_ADC_HV = 29.3570/2^(LaserServo.ADC_WIDTH - 1);
         CONV_DAC = 1.079/2^(LaserServo.ADC_WIDTH - 1);
         
-        FIFO_ROUTE_TABLE = {'adc1','adc2','scan','pid1','pid2','out1','out2'};
+        FIFO_ROUTE_TABLE = {'adc1','adc2','scan','pid1','pid2','out1','out2','demod1','demod2'};
     end
     
     methods
@@ -101,11 +105,19 @@ classdef LaserServo < handle
             %
             self.fifoReg = DeviceRegister('38',self.conn);
             %
+            % There are four lock-in registers from 0x40 to 0x4C
+            %
+            self.lockinRegs = DeviceRegister.empty;
+            for nn = 1:4
+                self.lockinRegs(nn) = DeviceRegister(hex2dec('40') + nn*4,self.conn);
+            end
+            %
             % Input selector and top-level settings
             %
-            self.inputSelect = DeviceParameter([0,0],self.topReg)...
-                .setLimits('lower',1,'upper',2)...
-                .setFunctions('to',@(x) x - 1,'from',@(x) x + 1);
+            self.inputSelect = DeviceParameter([0,1],self.topReg)...
+                .setLimits('lower',0,'upper',3);
+            self.outputSelect = DeviceParameter([2,3],self.topReg)...
+                .setLimits('lower',0,'upper',3);
             % 
             % Initial filtering
             %
@@ -130,7 +142,10 @@ classdef LaserServo < handle
             self.sampleTime = DeviceParameter([8,31],self.fifoReg)...
                 .setLimits('lower',0,'upper',2^24-1)...
                 .setFunctions('to',@(x) x*LaserServo.CLK,'from',@(x) x/LaserServo.CLK);
-            
+            %
+            % Lock-in settings
+            %
+            self.lockin = LaserServoLockInControl(self,self.lockinRegs);
         end
         
         function self = setDefaults(self,varargin)
@@ -141,6 +156,7 @@ classdef LaserServo < handle
             self.log2Avgs.set(4);
             self.pid.setDefaults;
             self.scan.setDefaults;
+            self.lockin.setDefaults;
             self.fifoRoute(1).set('adc1');
             self.fifoRoute(2).set('scan');
             self.setSampleTime;
@@ -200,7 +216,8 @@ classdef LaserServo < handle
                  self.filtReg.getWriteData;
                  self.pidRegs.getWriteData;
                  self.scanRegs.getWriteData;
-                 self.fifoReg.getWriteData];
+                 self.fifoReg.getWriteData;
+                 self.lockinRegs.getWriteData];
             d = d';
             d = d(:);
             %
@@ -224,7 +241,8 @@ classdef LaserServo < handle
                  self.pidRegs(1,:).getReadData;
                  self.pidRegs(2,:).getReadData;
                  self.scanRegs.getReadData;
-                 self.fifoReg.getReadData];
+                 self.fifoReg.getReadData;
+                 self.lockinRegs.getReadData];
             self.conn.write(d,'mode','read');
             value = self.conn.recvMessage;
             %
@@ -241,6 +259,9 @@ classdef LaserServo < handle
             self.scanRegs(2).value = value(10);
             self.scanRegs(3).value = value(11);
             self.fifoReg.value = value(12);
+            self.lockinRegs(1).value = value(13);
+            self.lockinRegs(2).value = value(14);
+            self.lockinRegs(3).value = value(15);
             %
             % Read parameters from registers
             %
@@ -248,6 +269,7 @@ classdef LaserServo < handle
             self.log2Avgs.get;
             self.pid.get;
             self.scan.get;
+            self.lockin.get;
             for nn = 1:numel(self.fifoRoute)
                 self.fifoRoute(nn).get;
             end
@@ -343,6 +365,7 @@ classdef LaserServo < handle
             self.pidRegs.print('pidRegs',strwidth);
             self.scanRegs.print('scanRegs',strwidth);
             self.fifoReg.print('fifoReg',strwidth);
+            self.lockinRegs.print('lockinRegs',strwidth);
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Filtering Parameters\n');
             self.log2Avgs.print('log2Avgs',strwidth,'%d');
@@ -360,6 +383,9 @@ classdef LaserServo < handle
             self.fifoRoute(1).print('FIFO Routing 1',strwidth,'%s');
             self.fifoRoute(2).print('FIFO Routing 2',strwidth,'%s');
             self.sampleTime.print('Sample time',strwidth,'%.3e','s');
+            fprintf(1,'\t ----------------------------------\n');
+            fprintf(1,'\t Lock-in Parameters\n');
+            self.lockin.print(strwidth);
             
         end
         
