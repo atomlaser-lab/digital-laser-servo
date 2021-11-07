@@ -123,8 +123,8 @@ component TriangularScan is
     port(
         clk         :   in  std_logic;          --Input clock
         aresetn     :   in  std_logic;          --Asynchronous reset
-        enable      :   in  std_logic;
-
+        enable_i    :   in  std_logic;          --Enable signal
+        enable_o    :   out std_logic;          --Output enable signal
         --
         -- Parameter inputs:
         -- 0: (31 downto 16 => scan amplitude, 15 downto 0 => offset)
@@ -190,7 +190,7 @@ signal lockin_valid_o               :   std_logic_vector(1 downto 0);
 --
 -- PID 1 settings and signals
 --
-signal pidRegs1                     :   t_param_reg_array(2 downto 0);
+signal pidRegs1, pidRegs1_i         :   t_param_reg_array(2 downto 0);
 signal pidEnable1, pidScanEnable1   :   std_logic;
 signal control1_i, measure1_i       :   t_adc;
 signal scan1_i                      :   t_dac;
@@ -201,7 +201,7 @@ signal pidValid1_o                  :   std_logic;
 --
 -- PID 2 settings and signals
 --
-signal pidRegs2                     :   t_param_reg_array(2 downto 0);
+signal pidRegs2, pidRegs2_i         :   t_param_reg_array(2 downto 0);
 signal pidEnable2, pidScanEnable2   :   std_logic;
 signal control2_i, measure2_i       :   t_adc;
 signal scan2_i                      :   t_dac;
@@ -216,6 +216,7 @@ signal scanRegs                     :   t_param_reg_array(2 downto 0);
 signal scan_o                       :   t_dac;
 signal scanValid_o                  :   std_logic;
 signal scanEnable_i                 :   std_logic;
+signal scanEnable_o                 :   std_logic;
 signal scanEnableSet                :   std_logic;
 signal scanPolarity_o               :   std_logic;
 --
@@ -288,6 +289,15 @@ control1_i <= signed(pidRegs1(0)(31 downto 16));
 pidEnable2 <= pidRegs2(0)(0);
 pidScanEnable2 <= pidRegs2(0)(2);
 control2_i <= signed(pidRegs2(0)(31 downto 16));
+
+pidRegs1_i(0)(0) <= pidEnable1 and not(scanEnable_o);
+pidRegs1_i(0)(31 downto 1) <= pidRegs1(0)(31 downto 1);
+pidRegs1_i(pidRegs1_i'length - 1 downto 1) <= pidRegs1(pidRegs1'length - 1 downto 1);
+
+pidRegs2_i(0)(0) <= pidEnable2 and not(scanEnable_o);
+pidRegs2_i(0)(31 downto 1) <= pidRegs2(0)(31 downto 1);
+pidRegs2_i(pidRegs2_i'length - 1 downto 1) <= pidRegs2(pidRegs2'length - 1 downto 1);
+
 --
 -- Begin with a quick-average module for initial filtering
 --
@@ -325,7 +335,8 @@ GenScan: TriangularScan
 port map(
     clk             =>  adcClk,
     aresetn         =>  aresetn,
-    enable          =>  scanEnable_i,
+    enable_i        =>  scanEnable_i,
+    enable_o        =>  scanEnable_o,
     regs_i          =>  scanRegs,
     scan_o          =>  scan_o,
     polarity_o      =>  scanPolarity_o,
@@ -358,7 +369,7 @@ port map(
     measValid_i =>  measValid1_i,
     scan_i      =>  scan1_i,
     scanValid_i =>  scanValid1_i,
-    regs_i      =>  pidRegs1,
+    regs_i      =>  pidRegs1_i,
     pid_o       =>  pid1_o,
     act_o       =>  act1_o,
     valid_o     =>  pidValid1_o
@@ -389,7 +400,7 @@ port map(
     measValid_i =>  measValid2_i,
     scan_i      =>  scan2_i,
     scanValid_i =>  scanValid2_i,
-    regs_i      =>  pidRegs2,
+    regs_i      =>  pidRegs2_i,
     pid_o       =>  pid2_o,
     act_o       =>  act2_o,
     valid_o     =>  pidValid2_o
@@ -505,32 +516,32 @@ begin
                             --
                             -- PID 1 registers
                             --
-                            when X"00000C" => rw(bus_m,bus_s,comState,pidRegs1(0));
-                            when X"000010" => rw(bus_m,bus_s,comState,pidRegs1(1));
-                            when X"000014" => rw(bus_m,bus_s,comState,pidRegs1(2));
+                            when X"000010" => rw(bus_m,bus_s,comState,pidRegs1(0));
+                            when X"000014" => rw(bus_m,bus_s,comState,pidRegs1(1));
+                            when X"000018" => rw(bus_m,bus_s,comState,pidRegs1(2));
                             --
                             -- PID 2 registers
                             --
-                            when X"00001C" => rw(bus_m,bus_s,comState,pidRegs2(0));
-                            when X"000020" => rw(bus_m,bus_s,comState,pidRegs2(1));
-                            when X"000024" => rw(bus_m,bus_s,comState,pidRegs2(2));
+                            when X"000020" => rw(bus_m,bus_s,comState,pidRegs2(0));
+                            when X"000024" => rw(bus_m,bus_s,comState,pidRegs2(1));
+                            when X"000028" => rw(bus_m,bus_s,comState,pidRegs2(2));
                             --
                             -- Scan registers
                             --
-                            when X"00002C" => rw(bus_m,bus_s,comState,scanRegs(0));
-                            when X"000030" => rw(bus_m,bus_s,comState,scanRegs(1));
-                            when X"000034" => rw(bus_m,bus_s,comState,scanRegs(2));
+                            when X"000030" => rw(bus_m,bus_s,comState,scanRegs(0));
+                            when X"000034" => rw(bus_m,bus_s,comState,scanRegs(1));
+                            when X"000038" => rw(bus_m,bus_s,comState,scanRegs(2));
                             --
                             -- FIFO read/write register
                             --
-                            when X"000038" => rw(bus_m,bus_s,comState,fifoReg);
+                            when X"000040" => rw(bus_m,bus_s,comState,fifoReg);
                             --
                             -- Lock in detector settings
                             --
-                            when X"000040" => rw(bus_m,bus_s,comState,lockinRegs(0));
-                            when X"000044" => rw(bus_m,bus_s,comState,lockinRegs(1));
-                            when X"000048" => rw(bus_m,bus_s,comState,lockinRegs(2));
-                            when X"00004C" => rw(bus_m,bus_s,comState,lockinRegs(3));
+                            when X"000050" => rw(bus_m,bus_s,comState,lockinRegs(0));
+                            when X"000054" => rw(bus_m,bus_s,comState,lockinRegs(1));
+                            when X"000058" => rw(bus_m,bus_s,comState,lockinRegs(2));
+                            when X"00005C" => rw(bus_m,bus_s,comState,lockinRegs(3));
                             --
                             -- If not specified, throw an error
                             --

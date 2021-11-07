@@ -100,30 +100,33 @@ signal bus_s                    :   t_axi_bus_slave;
 -- AXI data
 --
 
-constant axi_addresses   :   t_axi_addr_array(14 downto 0)  :=  (0  =>  X"00000000",
+constant axi_addresses   :   t_axi_addr_array(16 downto 0)  :=  (0  =>  X"00000000",
                                                                  1  =>  X"00000004",
                                                                  2  =>  X"00000008",
-                                                                 3  =>  X"0000000C",
-                                                                 4  =>  X"00000010",
-                                                                 5  =>  X"00000014",
-                                                                 6  =>  X"00000018",
-                                                                 7  =>  X"0000001C",
-                                                                 8  =>  X"00000020",
-                                                                 9  =>  X"00000024",
-                                                                 10 =>  X"00000028",
-                                                                 11 =>  X"0000002C",
-                                                                 12 =>  X"00000030",
-                                                                 13 =>  X"00000034",
-                                                                 14 =>  X"00000038");
+                                                                 3  =>  X"00000010",
+                                                                 4  =>  X"00000014",
+                                                                 5  =>  X"00000018",
+                                                                 6  =>  X"00000020",
+                                                                 7  =>  X"00000024",
+                                                                 8  =>  X"00000028",
+                                                                 9  =>  X"00000030",
+                                                                 10 =>  X"00000034",
+                                                                 11 =>  X"00000038",
+                                                                 12 =>  X"00000040",
+                                                                 13 =>  X"00000050",
+                                                                 14 =>  X"00000054",
+                                                                 15 =>  X"00000058",
+                                                                 16 =>  X"0000005C");
 
 signal axi_data :   t_axi_data_array(axi_addresses'length - 1 downto 0);          
 
 signal triggers, topReg             :   t_param_reg;
 signal initFiltReg                  :   t_param_reg;
-signal pidRegs1                     :   t_param_reg_array(3 downto 0);
-signal pidRegs2                     :   t_param_reg_array(3 downto 0);
+signal pidRegs1                     :   t_param_reg_array(2 downto 0);
+signal pidRegs2                     :   t_param_reg_array(2 downto 0);
 signal scanRegs                     :   t_param_reg_array(2 downto 0);
 signal fifoReg                      :   t_param_reg;
+signal lockinRegs                   :   t_param_reg_array(3 downto 0);
 
 signal lowerLimit, upperLimit       :   std_logic_vector(15 downto 0);
 
@@ -189,15 +192,18 @@ axi_data <= (0  =>  triggers,
              3  =>  pidRegs1(0),
              4  =>  pidRegs1(1),
              5  =>  pidRegs1(2),
-             6  =>  pidRegs1(3),
-             7  =>  pidRegs2(0),
-             8  =>  pidRegs2(1),
-             9  =>  pidRegs2(2),
-            10  =>  pidRegs2(3),
-            11  =>  scanRegs(0),
-            12  =>  scanRegs(1),
-            13  =>  scanRegs(2),
-            14  =>  fifoReg);
+             6  =>  pidRegs2(0),
+             7  =>  pidRegs2(1),
+             8  =>  pidRegs2(2),
+             9  =>  scanRegs(0),
+            10  =>  scanRegs(1),
+            11  =>  scanRegs(2),
+            12  =>  fifoReg,
+            13  =>  lockinRegs(0),
+            14  =>  lockinRegs(1),
+            15  =>  lockinRegs(2),
+            16  =>  lockinRegs(3)
+            );
 
 adcData_i <= m_axis_tdata;
 
@@ -214,31 +220,16 @@ begin
     startAXI <= '0';
     ext_i <= (others => '0');
     triggers <= (others => '0');
---    topReg <= X"0000_0000";
---    initFiltReg <= X"00000001";
---    pidRegs1 <= (0 => X"00000004", 1 => X"00010001", 2 => X"00020000", 3 => upperLimit & lowerLimit);
---    pidRegs2 <= (0 => X"00000000", 1 => X"00010001", 2 => X"00020000", 3 => upperLimit & lowerLimit);
---    scanRegs(0) <= std_logic_vector(to_unsigned(500,16)) & std_logic_vector(to_unsigned(500,16));
---    scanRegs(1) <= std_logic_vector(to_unsigned(10,16)) & std_logic_vector(to_unsigned(50,16));
---    fifoReg <= (others => '0');
-
---    topReg <= X"0001_0000";
---    initFiltReg <= X"00000004";
---    pidRegs1 <= (0 => X"00000004", 1 => X"00000000", 2 => X"00000000", 3 => upperLimit & lowerLimit);
---    pidRegs2 <= (0 => X"00000000", 1 => X"00000000", 2 => X"00000000", 3 => upperLimit & lowerLimit);
---    scanRegs(0) <= X"1b00_0000";
---    scanRegs(1) <= X"0000_008a";
---    scanRegs(2) <= X"0000_f424";
---    fifoReg <= X"0000_0a22";
 
     topReg <= X"0000_0000";
     initFiltReg <= X"00000004";
-    pidRegs1 <= (0 => X"00000004", 1 => X"00000000", 2 => X"00000000", 3 => upperLimit & lowerLimit);
-    pidRegs2 <= (0 => X"00000000", 1 => X"00000000", 2 => X"00000000", 3 => upperLimit & lowerLimit);
+    pidRegs1 <= (0 => X"03e8_0004", 1 => X"05000a05", 2 => upperLimit & lowerLimit);
+    pidRegs2 <= (0 => X"0000_0000", 1 => X"00000000", 2 => upperLimit & lowerLimit);
     scanRegs(0) <= X"1b00_0000";
-    scanRegs(1) <= X"0000_008a";
-    scanRegs(2) <= X"0000_0271";
+    scanRegs(1) <= X"0000_000a";
+    scanRegs(2) <= X"0000_0005";
     fifoReg <= X"0000_0a04";
+    lockinRegs <= (others => (others => '0'));
     
     axi_addr_single <= (others => '0');
     axi_data_single <= (others => '0');
@@ -263,17 +254,17 @@ begin
     start_single_i <= "01";
     wait until bus_s.resp(0) = '1';
     start_single_i <= "00";
-    wait for 100 ns;
+    wait for 500 ns;
     --
     -- Enable scan
     --
     wait until rising_edge(sysclk);
     axi_addr_single <= X"0000_0004";
-    axi_data_single <= X"0001_0000";
+    axi_data_single <= X"0000_0010";
     start_single_i <= "01";
     wait until bus_s.resp(0) = '1';
     start_single_i <= "00";
-    wait for 10 ms;
+    wait for 100 us;
     --
     -- Read FIFO status
     --
@@ -296,8 +287,8 @@ begin
     -- Enable PID1
     --
     wait until rising_edge(sysclk);
-    axi_addr_single <= X"0000_000C";
-    axi_data_single <= X"0000_000" & "0101";
+    axi_addr_single <= X"0000_0010";
+    axi_data_single <= X"03e8_000" & "0101";
     start_single_i <= "01";
     wait until bus_s.resp(0) = '1';
     start_single_i <= "00";

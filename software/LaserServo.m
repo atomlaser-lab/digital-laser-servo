@@ -51,6 +51,8 @@ classdef LaserServo < handle
         CONV_DAC = 1.079/2^(LaserServo.ADC_WIDTH - 1);
         
         FIFO_ROUTE_TABLE = {'adc1','adc2','scan','pid1','pid2','out1','out2','demod1','demod2'};
+        INPUT_TABLE = {'adc1','adc2','demod1','demod2'};
+        OUTPUT_TABLE = {'pid','modulation'};
     end
     
     methods
@@ -91,33 +93,38 @@ classdef LaserServo < handle
             %
             self.pidRegs = DeviceRegister.empty;
             for nn = 0:2
-                self.pidRegs(1,nn + 1) = DeviceRegister(hex2dec('0c') + nn*4,self.conn);
-                self.pidRegs(2,nn + 1) = DeviceRegister(hex2dec('1c') + nn*4,self.conn);
+                self.pidRegs(1,nn + 1) = DeviceRegister(hex2dec('10') + nn*4,self.conn);
+                self.pidRegs(2,nn + 1) = DeviceRegister(hex2dec('20') + nn*4,self.conn);
             end
             %
             % There are 3 scan registers
             %
-            self.scanRegs = DeviceRegister('2C',self.conn);
-            self.scanRegs(2) = DeviceRegister('30',self.conn);
-            self.scanRegs(3) = DeviceRegister('34',self.conn);
+            self.scanRegs = DeviceRegister('30',self.conn);
+            self.scanRegs(2) = DeviceRegister('34',self.conn);
+            self.scanRegs(3) = DeviceRegister('38',self.conn);
             %
             % There is one FIFO register
             %
-            self.fifoReg = DeviceRegister('38',self.conn);
+            self.fifoReg = DeviceRegister('40',self.conn);
             %
             % There are four lock-in registers from 0x40 to 0x4C
             %
             self.lockinRegs = DeviceRegister.empty;
             for nn = 1:4
-                self.lockinRegs(nn) = DeviceRegister(hex2dec('40') + nn*4,self.conn);
+                self.lockinRegs(nn) = DeviceRegister(hex2dec('50') + nn*4,self.conn);
             end
             %
             % Input selector and top-level settings
             %
             self.inputSelect = DeviceParameter([0,1],self.topReg)...
-                .setLimits('lower',0,'upper',3);
-            self.outputSelect = DeviceParameter([2,3],self.topReg)...
-                .setLimits('lower',0,'upper',3);
+                .setLimits('lower',0,'upper',3)...
+                .setFunctions('to',@(x) convert_input_table(x,'int'),'from',@(x) convert_input_table(x,'string'));
+            self.outputSelect = DeviceParameter([2,2],self.topReg)...
+                .setLimits('lower',0,'upper',1)...
+                .setFunctions('to',@(x) convert_output_table(x,'int'),'from',@(x) convert_output_table(x,'string'));
+            self.outputSelect(2) = DeviceParameter([3,3],self.topReg)...
+                .setLimits('lower',0,'upper',1)...
+                .setFunctions('to',@(x) convert_output_table(x,'int'),'from',@(x) convert_output_table(x,'string'));
             % 
             % Initial filtering
             %
@@ -152,7 +159,9 @@ classdef LaserServo < handle
             %SETDEFAULTS Sets parameter values to their defaults
             %
             %   SELF = SETDEFAULTS(SELF) sets default values for SELF
-            self.inputSelect.set(1);
+            self.inputSelect.set('adc1');
+            self.outputSelect(1).set('pid');
+            self.outputSelect(2).set('pid');
             self.log2Avgs.set(4);
             self.pid.setDefaults;
             self.scan.setDefaults;
@@ -266,6 +275,9 @@ classdef LaserServo < handle
             % Read parameters from registers
             %
             self.inputSelect.get;
+            for nn = 1:numel(self.outputSelect)
+                self.outputSelect(nn).get;
+            end
             self.log2Avgs.get;
             self.pid.get;
             self.scan.get;
@@ -367,6 +379,11 @@ classdef LaserServo < handle
             self.fifoReg.print('fifoReg',strwidth);
             self.lockinRegs.print('lockinRegs',strwidth);
             fprintf(1,'\t ----------------------------------\n');
+            fprintf(1,'\t Input/Output Parameters\n');
+            self.inputSelect.print('Input select',strwidth,'%s');
+            self.outputSelect(1).print('Output select 1',strwidth,'%s');
+            self.outputSelect(2).print('Output select 2',strwidth,'%s');
+            fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Filtering Parameters\n');
             self.log2Avgs.print('log2Avgs',strwidth,'%d');
             fprintf(1,'\t ----------------------------------\n');
@@ -449,24 +466,68 @@ classdef LaserServo < handle
 end
 
 function r = convert_fifo_route(x,method)
-%CONVERT_FIFO_ROUTE Converts the FIFO routing string to an integer value
-%and vice versa
-%
-%   R = CONVERT_FIFO_ROUTE(X,'int') converts string X into an integer R
-%
-%   R = CONVERT_FIFO_ROUTE(X,'string') converts integer X into string R
+    %CONVERT_FIFO_ROUTE Converts the FIFO routing string to an integer value
+    %and vice versa
+    %
+    %   R = CONVERT_FIFO_ROUTE(X,'int') converts string X into an integer R
+    %
+    %   R = CONVERT_FIFO_ROUTE(X,'string') converts integer X into string R
 
-if strcmpi(method,'int')
-    for nn = 1:numel(LaserServo.FIFO_ROUTE_TABLE)
-        if strcmpi(x,LaserServo.FIFO_ROUTE_TABLE{nn})
-            r = nn - 1;
-            return;
+    if strcmpi(method,'int')
+        for nn = 1:numel(LaserServo.FIFO_ROUTE_TABLE)
+            if strcmpi(x,LaserServo.FIFO_ROUTE_TABLE{nn})
+                r = nn - 1;
+                return;
+            end
         end
+    elseif strcmpi(method,'string')
+        r = LaserServo.FIFO_ROUTE_TABLE{x+1};
+    else
+        error('Unknown conversion direction ''%s''',method);
     end
-elseif strcmpi(method,'string')
-    r = LaserServo.FIFO_ROUTE_TABLE{x+1};
-else
-    error('Unknown conversion direction ''%s''',method);
+
 end
 
+function r = convert_input_table(x,method)
+    %CONVERT_INPUT_TABLE Converts the input select string to an integer value
+    %and vice versa
+    %
+    %   R = CONVERT_INPUT_TABLE(X,'int') converts string X into an integer R
+    %
+    %   R = CONVERT_INPUT_TABLE(X,'string') converts integer X into string R
+
+    if strcmpi(method,'int')
+        for nn = 1:numel(LaserServo.INPUT_TABLE)
+            if strcmpi(x,LaserServo.INPUT_TABLE{nn})
+                r = nn - 1;
+                return;
+            end
+        end
+    elseif strcmpi(method,'string')
+        r = LaserServo.INPUT_TABLE{x+1};
+    else
+        error('Unknown conversion direction ''%s''',method);
+    end
+end
+
+function r = convert_output_table(x,method)
+    %CONVERT_OUTPUT_TABLE Converts the output select string to an integer value
+    %and vice versa
+    %
+    %   R = CONVERT_OUTPUT_TABLE(X,'int') converts string X into an integer R
+    %
+    %   R = CONVERT_OUTPUT_TABLE(X,'string') converts integer X into string R
+
+    if strcmpi(method,'int')
+        for nn = 1:numel(LaserServo.OUTPUT_TABLE)
+            if strcmpi(x,LaserServo.OUTPUT_TABLE{nn})
+                r = nn - 1;
+                return;
+            end
+        end
+    elseif strcmpi(method,'string')
+        r = LaserServo.OUTPUT_TABLE{x+1};
+    else
+        error('Unknown conversion direction ''%s''',method);
+    end
 end

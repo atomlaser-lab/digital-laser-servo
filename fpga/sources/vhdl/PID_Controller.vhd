@@ -71,8 +71,11 @@ END COMPONENT;
 --
 -- Control signals
 --
+constant ENABLE_DELAY   :   natural :=  1250; --1 ms
 signal enable	:	std_logic;
 signal polarity	:	std_logic;
+signal enableDelayCount :   unsigned(16 downto 0);
+signal enableSync   :   std_logic_vector(1 downto 0);
 --
 -- Internal measurement, control, and scan signals
 --
@@ -105,6 +108,49 @@ begin
 --
 -- Parse parameters
 --
+--PSync: process(clk,aresetn) is
+--begin
+--    if aresetn = '0' then
+--        enableSync <= "00";
+--        enableDelayCount <= (others => '0');
+--        enable <= '0';
+--    elsif rising_edge(clk) then
+--        enableSync <= enableSync(0) & regs_i(0)(0);
+--        if regs_i(0)(0) = '0' then
+--            enable <= '0';
+--            enableDelayCount <= (others => '0');
+--        elsif enableSync = "01" then
+--            enableDelayCount <= (0 => '1',others => '0');
+--            enable <= '0';
+--        elsif enableDelayCount > 0 and enableDelayCount < ENABLE_DELAY then
+--            enableDelayCount <= enableDelayCount + 1;
+--            enable <= '0';
+--        elsif enableDelayCount >= ENABLE_DELAY then
+--            enable <= '1';
+--        end if;
+--    end if;
+--end process;
+--PSync: process(clk,aresetn,regs_i) is
+--begin
+--    if aresetn = '0' then
+--        enableDelayCount <= (others => '0');
+--        enable <= '0';
+--    elsif rising_edge(regs_i(0)(0)) then
+--        enableDelayCount <= (0 => '1', others => '0');
+--        enable <= '0';
+--    elsif rising_edge(clk) then
+--        if regs_i(0)(0) = '0' then
+--            enable <= '0';
+--            enableDelayCount <= (others => '0');
+--        elsif enableDelayCount > 0 and enableDelayCount < ENABLE_DELAY then
+--            enableDelayCount <= enableDelayCount + 1;
+--            enable <= '0';
+--        elsif enableDelayCount >= ENABLE_DELAY then
+--            enable <= '1';
+--        end if;
+--    end if;
+--end process;
+
 enable <= regs_i(0)(0);
 polarity <= regs_i(0)(1);
 --

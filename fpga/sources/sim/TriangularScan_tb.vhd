@@ -14,14 +14,15 @@ component TriangularScan is
     port(
         clk         :   in  std_logic;          --Input clock
         aresetn     :   in  std_logic;          --Asynchronous reset
-        enable      :   in  std_logic;
-
+        enable_i    :   in  std_logic;          --Enable signal
+        enable_o    :   out std_logic;          --Output enable signal
         --
         -- Parameter inputs:
         -- 0: (31 downto 16 => scan amplitude, 15 downto 0 => offset)
-        -- 1: (31 downto 16 => step time, 15 downto 0 => step size)
+        -- 1: (31 downto 0) => step size
+        -- 2: (31 downto 0) => step time
         --
-        regs_i      :   in  t_param_reg_array(1 downto 0);
+        regs_i      :   in  t_param_reg_array(2 downto 0);
         
         scan_o      :   out t_dac;              --Output scan data
         polarity_o  :   out std_logic;          --Indicates the scan direction ('0' = negative, '1' = positive)
@@ -32,24 +33,22 @@ end component;
 signal clk_period   :   time    :=  10 ns;
 signal clk          :   std_logic;
 signal aresetn      :   std_logic;
-signal enable       :   std_logic;
-signal regs_i       :   t_param_reg_array(1 downto 0);
+signal enable_i, enable_o       :   std_logic;
+signal regs_i       :   t_param_reg_array(2 downto 0);
 signal scan_o       :   t_dac;
 signal polarity_o   :   std_logic;
 signal valid_o      :   std_logic;
-
-signal amp, offset  :   std_logic_vector(15 downto 0);
-signal stepTime,stepSize    :   std_logic_vector(15 downto 0);
 
 begin
 
 uut: TriangularScan
 port map(
-    clk     =>  clk,
-    aresetn =>  aresetn,
-    enable  =>  enable,
-    regs_i  =>  regs_i,
-    scan_o  =>  scan_o,
+    clk         =>  clk,
+    aresetn     =>  aresetn,
+    enable_i    =>  enable_i,
+    enable_o    =>  enable_o,
+    regs_i      =>  regs_i,
+    scan_o      =>  scan_o,
     polarity_o  =>  polarity_o,
     valid_o     =>  valid_o
 );
@@ -62,21 +61,20 @@ begin
     wait for clk_period/2;
 end process;
 
-amp <= std_logic_vector(to_unsigned(500,amp'length));
-offset <= std_logic_vector(to_unsigned(0,amp'length));
-stepSize <= std_logic_vector(to_unsigned(10,amp'length));
-stepTime <= std_logic_vector(to_unsigned(5,amp'length));
-
 main_proc: process is
 begin
     aresetn <= '0';
-    regs_i(0) <= std_logic_vector(to_unsigned(500,amp'length)) & std_logic_vector(to_unsigned(500,amp'length));
-    regs_i(1) <= std_logic_vector(to_unsigned(5,amp'length)) &  std_logic_vector(to_unsigned(100,amp'length));
-    enable <= '0';
+    regs_i(0) <= std_logic_vector(to_unsigned(500,16)) & std_logic_vector(to_unsigned(250,16));
+    regs_i(1) <= std_logic_vector(to_unsigned(10,32));
+    regs_i(2) <= std_logic_vector(to_unsigned(5,32));
+    enable_i <= '0';
     wait for 100 ns;
     wait until clk'event and clk = '1';
     aresetn <= '1';
-    enable <= '1';
+    enable_i <= '1';
+    wait for 9.8 us;
+    wait until rising_edge(clk);
+    enable_i <= '0';
     wait;
 end process; 
 

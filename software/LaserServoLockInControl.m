@@ -31,16 +31,16 @@ classdef LaserServoLockInControl < handle
             self.parent = parent;
             
             self.driveFreq = DeviceParameter([0,26],regs(1))...
-                .setLimits('lower',0,'upper',self.parent.CLK/(2^(self.DDS_WIDTH - 1)))...
-                .setFunctions('to',@(x) x/self.parent.CLK*2^(self.DDS_WIDTH - 1),'from',@(x)  x*self.parent.CLK/2^(self.DDS_WIDTH - 1));
+                .setLimits('lower',0,'upper',50e6)...
+                .setFunctions('to',@(x) x/self.parent.CLK*2^(self.DDS_WIDTH - 1),'from',@(x) x*self.parent.CLK/2^(self.DDS_WIDTH - 1));
             
             self.demodFreq = DeviceParameter([0,26],regs(2))...
-                .setLimits('lower',0,'upper',self.parent.CLK/(2^(self.DDS_WIDTH - 1)))...
-                .setFunctions('to',@(x) x/self.parent.CLK*2^(self.DDS_WIDTH - 1),'from',@(x)  x*self.parent.CLK/2^(self.DDS_WIDTH - 1));
+                .setLimits('lower',0,'upper',50e6)...
+                .setFunctions('to',@(x) x/self.parent.CLK*2^(self.DDS_WIDTH - 1),'from',@(x) x*self.parent.CLK/2^(self.DDS_WIDTH - 1));
             
             self.demodPhase = DeviceParameter([0,26],regs(3))...
-                .setLimits('lower',0,'upper',2*pi)...
-                .setFunctions('to',@(x) x/(2*pi)*2^(self.DDS_WIDTH - 1),'from',@(x)  x*(2*pi)/2^(self.DDS_WIDTH - 1));
+                .setLimits('lower',-360,'upper',360)...
+                .setFunctions('to',@(x) mod(x,360)/360*2^(self.DDS_WIDTH - 1),'from',@(x) x*360/2^(self.DDS_WIDTH - 1));
             
             self.cicRate = DeviceParameter([0,12],regs(4))...
                 .setLimits('lower',7,'upper',13);
@@ -82,8 +82,8 @@ classdef LaserServoLockInControl < handle
             s{1} = self.driveFreq.print('Drive frequency [Hz]',width,'%.3e');
             s{2} = self.demodFreq.print('Demod. frequency [Hz]',width,'%.3e');
             s{3} = self.demodPhase.print('Demod. phase [rad]',width,'%.3f');
-            s{4} = self.cicRate.print('Log2(CIC decimation',width,'%d');
-            s{5} = sprintf(['% ',num2str(width),'s: %d\n'],'Fixed demodulation multiple',self.lockAtMultiple);
+            s{4} = self.cicRate.print('Log2(CIC decimation)',width,'%d');
+%             s{5} = sprintf(['% ',num2str(width),'s: %d\n'],'Fixed demodulation multiple',self.lockAtMultiple);
             
             ss = '';
             for nn = 1:numel(s)

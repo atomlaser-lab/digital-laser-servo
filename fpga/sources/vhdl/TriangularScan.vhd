@@ -11,8 +11,8 @@ entity TriangularScan is
     port(
         clk         :   in  std_logic;          --Input clock
         aresetn     :   in  std_logic;          --Asynchronous reset
-        enable      :   in  std_logic;
-
+        enable_i    :   in  std_logic;          --Enable signal
+        enable_o    :   out std_logic;          --Output enable signal
         --
         -- Parameter inputs:
         -- 0: (31 downto 16 => scan amplitude, 15 downto 0 => offset)
@@ -29,14 +29,16 @@ end TriangularScan;
 
 architecture Behavioural of TriangularScan is
 
+type t_dac_array_local is array(natural range <>) of t_dac;
+
 signal polarity                 :   std_logic;
 signal offset                   :   t_dac;
 signal amplitude                :   t_dac;
 signal lowerLimit, upperLimit   :   t_dac;
 signal stepSize                 :   t_dac;
 signal count, stepTime          :   unsigned(31 downto 0);
-signal scan                     :   t_dac;
-signal valid                    :   std_logic;
+signal scan                     :   t_dac_array_local(1 downto 0);
+signal valid, enable            :   std_logic;
 
 begin
 --
@@ -69,12 +71,13 @@ end process;
 --
 -- Define process, and assign scan_o to scan
 --
-scan_o <= scan when enable = '1' else offset;
+scan_o <= scan(0) when enable = '1' else offset;
 polarity_o <= polarity;
+enable_o <= enable;
 ScanProc: process(clk,aresetn) is
 begin
     if aresetn = '0' then
-        scan <= (others => '0');
+        scan <= (others => offset);
         polarity <= '1';
         valid_o <= '0';
     elsif rising_edge(clk) then
@@ -83,28 +86,29 @@ begin
             -- When there is a valid reduced clock signal, output a new value
             --
             valid_o <= '1';
-            if scan < lowerLimit then
+            scan(1) <= scan(0);
+            if scan(0) < lowerLimit then
                 --
                 -- When we go below the lower limit, switch the polarity to positive
                 --
                 polarity <= '1';
-                scan <= lowerLimit;
-            elsif scan > upperLimit then
+                scan(0) <= lowerLimit;
+            elsif scan(0) > upperLimit then
                 --
                 -- When we go above the upper limit, switch the polarity to negative
                 --
                 polarity <= '0';
-                scan <= upperLimit;
+                scan(0) <= upperLimit;
             elsif polarity = '1' then
                 --
                 -- When the polarity is positive, add the step size
                 --
-                scan <= scan + stepSize;
+                scan(0) <= scan(0) + stepSize;
             elsif polarity = '0' then
                 --
                 -- When the polarity is negative, subtract the step size
                 --
-                scan <= scan - stepSize;
+                scan(0) <= scan(0) - stepSize;
             end if;
         else
             valid_o <= '0';
@@ -113,7 +117,20 @@ begin
 end process;
 
 
-
+P1: process(clk,aresetn) is
+begin
+    if aresetn = '0' then
+        enable <= '0';
+    elsif rising_edge(clk) then
+        if enable_i = '1' then
+            enable <= '1';
+        else
+            if (scan(0) >= offset and scan(1) < offset) or (scan(0) < offset and scan(1) >= offset) then
+                enable <= '0';
+            end if;
+        end if;
+    end if;
+end process;
 
 
 end architecture Behavioural;
