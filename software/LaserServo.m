@@ -110,8 +110,8 @@ classdef LaserServo < handle
             % There are four lock-in registers from 0x40 to 0x4C
             %
             self.lockinRegs = DeviceRegister.empty;
-            for nn = 1:4
-                self.lockinRegs(nn) = DeviceRegister(hex2dec('50') + nn*4,self.conn);
+            for nn = 0:3
+                self.lockinRegs(nn + 1) = DeviceRegister(hex2dec('50') + nn*4,self.conn);
             end
             %
             % Input selector and top-level settings
