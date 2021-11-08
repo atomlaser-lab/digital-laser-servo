@@ -210,34 +210,41 @@ classdef DeviceParameter < handle
             %
             %   R = GET(SELF) Returns the physical value of the parameter
             %   associated with DEVICEPARAMETER SELF
-
-            if numel(self.regs) == 1
-                %
-                % When there is only one register, read the data from the
-                % register according to the parameter data type
-                %
-                self.intValue = self.regs.get(self.bits);
-                if strcmpi(self.type,'int32')
-                    v = typecast(self.intValue,'int32');
-                elseif strcmpi(self.type,'uint32')
-                    v = typecast(self.intValue,'uint32');
-                elseif strcmpi(self.type,'int16')
-                    v = typecast(uint16(self.intValue),'int16');
+            
+            if numel(self) == 1
+                if numel(self.regs) == 1
+                    %
+                    % When there is only one register, read the data from the
+                    % register according to the parameter data type
+                    %
+                    self.intValue = self.regs.get(self.bits);
+                    if strcmpi(self.type,'int32')
+                        v = typecast(self.intValue,'int32');
+                    elseif strcmpi(self.type,'uint32')
+                        v = typecast(self.intValue,'uint32');
+                    elseif strcmpi(self.type,'int16')
+                        v = typecast(uint16(self.intValue),'int16');
+                    end
+                else
+                    %
+                    % When there is more than one register, read the data from
+                    % the registers in a loop
+                    %
+                    tmp = uint64(0);
+                    for nn=numel(self.regs):-1:2
+                        tmp = tmp + bitshift(uint64(self.regs(nn).get(self.bits(nn,:))),abs(diff(self.bits(nn-1,:)))+1);
+                    end
+                    tmp = tmp + uint64(self.regs(1).get(self.bits(1,:)));
+                    self.intValue = tmp;
                 end
+                self.value = self.fromInteger(double(v),varargin{:});
+                r = self.value;
             else
-                %
-                % When there is more than one register, read the data from
-                % the registers in a loop
-                %
-                tmp = uint64(0);
-                for nn=numel(self.regs):-1:2
-                    tmp = tmp + bitshift(uint64(self.regs(nn).get(self.bits(nn,:))),abs(diff(self.bits(nn-1,:)))+1);
+                r = zeros(numel(self),1);
+                for nn = 1:numel(self)
+                    r(nn) = self(nn).get;
                 end
-                tmp = tmp + uint64(self.regs(1).get(self.bits(1,:)));
-                self.intValue = tmp;
             end
-            self.value = self.fromInteger(double(v),varargin{:});
-            r = self.value;
         end
         
         function self = read(self)
@@ -330,6 +337,23 @@ classdef DeviceParameter < handle
                 for nn=1:numel(self)
                     self(nn).disp();
                     fprintf(1,'\n');
+                end
+            end
+        end
+        
+        function s = struct(self)
+            %STRUCT Creates a struct from the object
+            if numel(self) == 1
+                s.bits = self.bits;
+                s.upperLimit = self.upperLimit;
+                s.lowerLimit = self.lowerLimit;
+                s.type = self.type;
+                s.value = self.value;
+                s.toIntegerFunction = self.toIntegerFunction;
+                s.fromIntegerFunction = self.fromIntegerFunction;
+            else
+                for nn = 1:numel(self)
+                    s(nn) = self(nn).struct;
                 end
             end
         end

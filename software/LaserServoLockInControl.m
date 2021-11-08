@@ -100,6 +100,22 @@ classdef LaserServoLockInControl < handle
             disp(self.print(25));
         end
         
+        function s = struct(self)
+            %STRUCT Creates a struct from the object
+            s.driveFreq = self.driveFreq.struct;
+            s.demodFreq = self.demodFreq.struct;
+            s.demodPhase = self.demodPhase.struct;
+            s.cicRate = self.cicRate.struct;
+        end
+        
+        function self = loadstruct(self,s)
+            %LOADSTRUCT Loads a struct into the object
+            self.driveFreq.set(s.driveFreq.value);
+            self.demodFreq.set(s.demodFreq.value);
+            self.demodPhase.set(s.demodPhase.value);
+            self.cicRate.set(s.cicRate.value);
+        end
+        
     end
     
 end

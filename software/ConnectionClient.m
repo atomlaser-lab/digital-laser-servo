@@ -239,6 +239,12 @@ classdef ConnectionClient < handle
                 self.processMessage();
             end
         end
+        
+        function s = struct(self)
+            %STRUCT Creates a struct from the object
+            s.host = self.host;
+            s.port = self.port;
+        end
     end
     
     methods(Access = protected)       

@@ -411,9 +411,20 @@ classdef LaserServo < handle
             %
             %   S = STRUCT(SELF) Returns structure S from current
             %   object SELF
+            s.conn = self.conn.struct;
             
-            s.log2Avgs = self.log2Avgs;
+            s.jumpers = self.jumpers;
+            s.t = self.t;
+            s.data = self.data;
             
+            s.inputSelect = self.inputSelect.struct;
+            s.outputSelect = self.outputSelect.struct;
+            s.log2Avgs = self.log2Avgs.struct;
+            s.pid = self.pid.struct;
+            s.scan = self.scan.struct;
+            s.lockin = self.lockin.struct;
+            s.sampleTime = self.sampleTime.struct;
+            s.fifoRoute = self.fifoRoute.struct;
         end
 
         function s = saveobj(self)
@@ -424,6 +435,26 @@ classdef LaserServo < handle
             s = self.struct;
         end
         
+        function self = loadstruct(self,s)
+            %LOADSTRUCT Loads a struct and copies properties to object
+            self.jumpers = s.jumpers;
+            self.t = s.t;
+            self.data = s.data;
+            
+            self.inputSelect.set(s.inputSelect.value);
+            for nn = 1:numel(self.outputSelect)
+                self.outputSelect(nn).set(s.outputSelect(nn).value);
+            end
+            self.log2Avgs.set(s.log2Avgs.value);
+            self.pid.loadstruct(s.pid);
+            self.scan.loadstruct(s.scan);
+            self.lockin.loadstruct(s.lockin);
+            self.sampleTime.set(s.sampleTime.value);
+            for nn = 1:numel(self.fifoRoute)
+                self.fifoRoute(nn).set(s.fifoRoute(nn).value);
+            end
+        end
+        
     end
     
     methods(Static)
@@ -432,8 +463,25 @@ classdef LaserServo < handle
             %
             %   SELF = LOADOBJ(S) uses structure S to create new DPFEEDBACK
             %   object SELF
+            self = LaserServo(s.conn.host,s.conn.port);
+            self.setDefaults;
             
+            self.jumpers = s.jumpers;
+            self.t = s.t;
+            self.data = s.data;
             
+            self.inputSelect.set(s.inputSelect.value);
+            for nn = 1:numel(self.outputSelect)
+                self.outputSelect(nn).set(s.outputSelect(nn).value);
+            end
+            self.log2Avgs.set(s.log2Avgs.value);
+            self.pid.loadstruct(s.pid);
+            self.scan.loadstruct(s.scan);
+            self.lockin.loadstruct(s.lockin);
+            self.sampleTime.set(s.sampleTime.value);
+            for nn = 1:numel(self.fifoRoute)
+                self.fifoRoute(nn).set(s.fifoRoute(nn).value);
+            end
         end
         
         function v = convertData(raw,c)
