@@ -187,6 +187,7 @@ signal lockin_dac_o                 :   t_dac;
 signal lockin_data_i                :   t_adc;
 signal lockin_data_o                :   t_adc_array;
 signal lockin_valid_o               :   std_logic_vector(1 downto 0);
+signal lockinSelect                 :   std_logic;
 --
 -- PID 1 settings and signals
 --
@@ -280,6 +281,7 @@ m_axis_tvalid <= '1';
 inputSignalSelect <= topReg(1 downto 0);
 outputSignalSelect <= topReg(3 downto 2);
 scanEnableSet <= topReg(4);
+lockinSelect <= topReg(5);
 --
 -- PID registers
 --
@@ -317,6 +319,7 @@ port map(
 --
 -- Also instantiate the lock-in detection module
 --
+lockin_data_i <= signed(adcData_i(15 downto 0)) when lockinSelect = '0' else signed(adcData_i(31 downto 16));
 LockIn: LockInDetector
 port map(
     clk         =>  adcClk,

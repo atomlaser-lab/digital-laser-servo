@@ -45,6 +45,15 @@ COMPONENT DDS_Fixed_Phase
   );
 END COMPONENT;
 
+COMPONENT DDS_Mult
+  PORT (
+    CLK : IN STD_LOGIC;
+    A : IN STD_LOGIC_VECTOR(11 DOWNTO 0);
+    B : IN STD_LOGIC_VECTOR(7 DOWNTO 0);
+    P : OUT STD_LOGIC_VECTOR(19 DOWNTO 0)
+  );
+END COMPONENT;
+
 COMPONENT DDS_Stream_Phase
   PORT (
     aclk : IN STD_LOGIC;
@@ -87,11 +96,14 @@ constant DDS_PHASE_WIDTH    :   natural :=  32;
 constant DDS_OUT_WIDTH      :   natural :=  12;
 subtype t_phase is std_logic_vector(DDS_PHASE_WIDTH - 1 downto 0);
 type t_phase_array is array(natural range <>) of t_phase;
-signal freq         :   t_phase_array(1 downto 0);
-signal phase        :   t_phase;
-signal dds_phase_i  :   std_logic_vector(63 downto 0);
-signal dds_dac_o    :   std_logic_vector(15 downto 0);
-signal dds_mix_o    :   std_logic_vector(31 downto 0);   
+signal freq             :   t_phase_array(1 downto 0);
+signal phase            :   t_phase;
+signal dds_phase_i      :   std_logic_vector(63 downto 0);
+signal dds_dac_o        :   std_logic_vector(15 downto 0);
+signal dds_mult_i       :   std_logic_vector(11 downto 0);
+signal dds_multiplier   :   std_logic_vector(7 downto 0);
+signal dds_mult_o       :   std_logic_vector(19 downto 0);
+signal dds_mix_o        :   std_logic_vector(31 downto 0);   
 signal dds_sin, dds_cos :   std_logic_vector(DDS_OUT_WIDTH - 1 downto 0);
 --
 -- Multiplier signals
@@ -101,7 +113,7 @@ signal mult_cos_o, mult_sin_o   :   std_logic_vector(data_slv_i'length + DDS_OUT
 --
 -- Filtering signals
 --
-signal cicLog2Rate  :   unsigned(12 downto 0);
+signal cicLog2Rate  :   unsigned(3 downto 0);
 signal cicShift     :   natural;
 signal filterConfig, filterConfig_old :   std_logic_vector(15 downto 0);
 signal filter_valid :   std_logic;
@@ -116,6 +128,7 @@ begin
 freq(0) <= regs_i(0);
 freq(1) <= regs_i(1);
 phase <= regs_i(2);
+dds_multiplier <= regs_i(3)(7 downto 0);
 
 FixedPhase: DDS_Fixed_Phase
 port map(
@@ -126,7 +139,18 @@ port map(
     m_axis_data_tvalid  =>  open,
     m_axis_data_tdata   =>  dds_dac_o
 );
-dac_o <= signed(dds_dac_o);
+
+dds_mult_i <= std_logic_vector(resize(signed(dds_dac_o),dds_mult_i'length));
+
+OutputMult: DDS_Mult
+port map(
+    clk =>  clk,
+    A   =>  dds_mult_i,
+    B   =>  dds_multiplier,
+    P   =>  dds_mult_o
+);
+
+dac_o <= resize(shift_right(signed(dds_mult_o),6),t_dac'length);
 --
 -- Generate the signal used for mixing
 --
@@ -164,7 +188,7 @@ port map(
 --
 -- Filter
 --
-cicLog2Rate <= unsigned(regs_i(3)(12 downto 0));
+cicLog2Rate <= unsigned(regs_i(3)(11 downto 8));
 cicShift <= to_integer(cicLog2Rate) + to_integer(cicLog2Rate) + to_integer(cicLog2Rate);
 filterConfig <= std_logic_vector(shift_left(to_unsigned(1,filterConfig'length),to_integer(cicLog2Rate)));
 ChangeProc: process(clk,aresetn) is
@@ -182,8 +206,8 @@ begin
     end if;
 end process; 
 
-filt_cos_i <= std_logic_vector(resize(unsigned(mult_cos_o),filt_cos_i'length));
-filt_sin_i <= std_logic_vector(resize(unsigned(mult_sin_o),filt_cos_i'length));
+filt_cos_i <= std_logic_vector(resize(signed(mult_cos_o),filt_cos_i'length));
+filt_sin_i <= std_logic_vector(resize(signed(mult_sin_o),filt_cos_i'length));
 
 CosFilter : LockInFilter
 PORT MAP (
@@ -213,8 +237,8 @@ PORT MAP (
     m_axis_data_tvalid      => filt_sin_valid
 ); 
 
-data_o(0) <= resize(shift_right(signed(filt_cos_o(64 downto 0)),cicShift),t_adc'length);
-data_o(1) <= resize(shift_right(signed(filt_sin_o(64 downto 0)),cicShift),t_adc'length);
+data_o(0) <= resize(shift_right(signed(filt_cos_o(64 downto 0)),cicShift + 12),t_adc'length);
+data_o(1) <= resize(shift_right(signed(filt_sin_o(64 downto 0)),cicShift + 12),t_adc'length);
 valid_o <= filt_sin_valid & filt_cos_valid;
 
 end Behavioral;

@@ -14,6 +14,7 @@ classdef LaserServo < handle
         %
         inputSelect         %2-bit selector for what signal to use for locking
         outputSelect        %2-bit selector for what outputs to generate
+        lockinSelect        %1-bit selector for lock-in detector
         log2Avgs            %Log2 of the number of averages on initial filter
         pid                 %PID settings, a 2 element array
         scan                %Scan settings
@@ -125,6 +126,9 @@ classdef LaserServo < handle
             self.outputSelect(2) = DeviceParameter([3,3],self.topReg)...
                 .setLimits('lower',0,'upper',1)...
                 .setFunctions('to',@(x) convert_output_table(x,'int'),'from',@(x) convert_output_table(x,'string'));
+            self.lockinSelect = DeviceParameter([5,5],self.topReg)...
+                .setLimits('lower',0,'upper',1)...
+                .setFunctions('to',@(x) convert_input_table(x,'int'),'from',@(x) convert_input_table(x,'string'));
             % 
             % Initial filtering
             %
@@ -271,6 +275,7 @@ classdef LaserServo < handle
             self.lockinRegs(1).value = value(13);
             self.lockinRegs(2).value = value(14);
             self.lockinRegs(3).value = value(15);
+            self.lockinRegs(4).value = value(16);
             %
             % Read parameters from registers
             %
