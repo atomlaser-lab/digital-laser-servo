@@ -166,7 +166,7 @@ classdef LaserServo < handle
             self.inputSelect.set('adc1');
             self.outputSelect(1).set('pid');
             self.outputSelect(2).set('pid');
-            self.lockinSelect.set(0);
+            self.lockinSelect.set('adc1');
             self.log2Avgs.set(4);
             self.pid.setDefaults;
             self.scan.setDefaults;
