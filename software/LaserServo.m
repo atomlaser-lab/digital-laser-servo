@@ -166,6 +166,7 @@ classdef LaserServo < handle
             self.inputSelect.set('adc1');
             self.outputSelect(1).set('pid');
             self.outputSelect(2).set('pid');
+            self.lockinSelect.set(0);
             self.log2Avgs.set(4);
             self.pid.setDefaults;
             self.scan.setDefaults;
@@ -283,6 +284,7 @@ classdef LaserServo < handle
             for nn = 1:numel(self.outputSelect)
                 self.outputSelect(nn).get;
             end
+            self.lockinSelect.get;
             self.log2Avgs.get;
             self.pid.get;
             self.scan.get;
@@ -388,6 +390,7 @@ classdef LaserServo < handle
             self.inputSelect.print('Input select',strwidth,'%s');
             self.outputSelect(1).print('Output select 1',strwidth,'%s');
             self.outputSelect(2).print('Output select 2',strwidth,'%s');
+            self.lockinSelect.print('Lock-in ADC',strwidth,'%s');
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Filtering Parameters\n');
             self.log2Avgs.print('log2Avgs',strwidth,'%d');
@@ -424,6 +427,7 @@ classdef LaserServo < handle
             
             s.inputSelect = self.inputSelect.struct;
             s.outputSelect = self.outputSelect.struct;
+            s.lockinSelect = self.lockinSelect.struct;
             s.log2Avgs = self.log2Avgs.struct;
             s.pid = self.pid.struct;
             s.scan = self.scan.struct;
@@ -450,6 +454,7 @@ classdef LaserServo < handle
             for nn = 1:numel(self.outputSelect)
                 self.outputSelect(nn).set(s.outputSelect(nn).value);
             end
+            self.lockinSelect.set(s.lockinSelect.value);
             self.log2Avgs.set(s.log2Avgs.value);
             self.pid.loadstruct(s.pid);
             self.scan.loadstruct(s.scan);
