@@ -323,7 +323,10 @@ classdef LaserServo < handle
             elseif nargin < 3
                 resetFlag = 0;
             end
-            self.conn.write(0,'mode','get scan data','numSamples',numSamples,'reset',resetFlag);
+            % self.conn.write(0,'mode','get scan data','numSamples',numSamples,'reset',resetFlag);
+            self.conn.write(0,'mode','command','cmd',...
+                {'./saveScanData','-rn',sprintf('%d',round(numSamples)),'-t',num2str(2)},...
+                'return_mode','file','file_name','saved-scan-data.bin');
             raw = typecast(self.conn.recvMessage,'uint8');
             %
             % Convert data to correct units
