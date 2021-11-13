@@ -304,7 +304,7 @@ classdef LaserServo < handle
             self.trigReg.set(0,[0,0]);
         end
         
-        function self = getScanData(self,numSamples,resetFlag)
+        function self = getScanData(self,numSamples)
             %GETSCANDATA Retrieves the scan data from the device
             %
             %   SELF = GETSCANDATA(SELF) retrieves
@@ -319,13 +319,9 @@ classdef LaserServo < handle
             
             if nargin < 2
                 numSamples = self.MAX_REAL_TIME_DATA;
-                resetFlag = 0;
-            elseif nargin < 3
-                resetFlag = 0;
             end
-            % self.conn.write(0,'mode','get scan data','numSamples',numSamples,'reset',resetFlag);
             self.conn.write(0,'mode','command','cmd',...
-                {'./saveScanData','-rn',sprintf('%d',round(numSamples)),'-t',num2str(2)},...
+                {'./saveScanData','-n',sprintf('%d',round(numSamples)),'-t',num2str(2)},...
                 'return_mode','file','file_name','saved-scan-data.bin');
             raw = typecast(self.conn.recvMessage,'uint8');
             %
@@ -340,6 +336,7 @@ classdef LaserServo < handle
             %
             % Loop through channels
             %
+            self.data = [];
             for nn = 1:size(v,2)
                 if any(strcmpi(self.fifoRoute(nn).value,{'adc1','adc2'}))
                     self.data(:,nn) = c*v(:,nn);
