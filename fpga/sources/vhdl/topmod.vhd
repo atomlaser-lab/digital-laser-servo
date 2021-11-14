@@ -50,6 +50,9 @@ ATTRIBUTE X_INTERFACE_PARAMETER of m_axis_tdata: SIGNAL is "CLK_DOMAIN system_pr
 ATTRIBUTE X_INTERFACE_PARAMETER of m_axis_tvalid: SIGNAL is "CLK_DOMAIN system_processing_system7_0_0_FCLK_CLK0,FREQ_HZ 125000000";
 
 component QuickAvg is
+    generic(
+        MAX_EXTENSION  :   natural :=  16
+    );
     port(
         clk         :   in  std_logic;          --Input clock
         aresetn     :   in  std_logic;          --Asynchronous reset
@@ -307,14 +310,17 @@ adcFilt_i(0) <= signed(adcData_i(15 downto 0));
 adcFilt_i(1) <= signed(adcData_i(31 downto 16));
 filtValid_i <= '1';
 InitFilt: QuickAvg
+generic map(
+    MAX_EXTENSION   =>  16
+)
 port map(
-    clk         =>  adcClk,
-    aresetn     =>  aresetn,
-    reg0        =>  initFiltReg,
-    adc_i       =>  adcFilt_i,
-    valid_i     =>  filtValid_i,
-    adc_o       =>  adcFilt_o,
-    valid_o     =>  filtValid_o
+    clk             =>  adcClk,
+    aresetn         =>  aresetn,
+    reg0            =>  initFiltReg,
+    adc_i           =>  adcFilt_i,
+    valid_i         =>  filtValid_i,
+    adc_o           =>  adcFilt_o,
+    valid_o         =>  filtValid_o
 );
 --
 -- Also instantiate the lock-in detection module

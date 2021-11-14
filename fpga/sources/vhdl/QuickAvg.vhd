@@ -13,6 +13,9 @@ use work.CustomDataTypes.all;
 -- packed in an array of 2 elements
 --
 entity QuickAvg is
+    generic(
+        MAX_EXTENSION  :   natural :=  16
+    );
     port(
         clk         :   in  std_logic;          --Input clock
         aresetn     :   in  std_logic;          --Asynchronous reset
@@ -29,23 +32,22 @@ end QuickAvg;
 architecture Behavioural of QuickAvg is
 
 --
--- Padding of integrated signals and their extended widhts
+-- Padding of integrated signals and their extended widths
 --
-constant PADDING    :   natural :=  16;  
-constant EXT_WIDTH  :   natural :=  ADC_WIDTH/2+PADDING; 
+constant EXT_WIDTH  :   natural :=  ADC_WIDTH/2 + MAX_EXTENSION; 
 --
 -- Parameters
 --
-signal log2Avgs     :   natural range 0 to 15   :=  0;
-signal numAvgs      :   unsigned(15 downto 0)    :=  to_unsigned(1,16);
+signal log2Avgs     :   natural range 0 to MAX_EXTENSION   :=  0;
+signal numAvgs      :   unsigned(MAX_EXTENSION - 1 downto 0)    :=  to_unsigned(1,MAX_EXTENSION);
 --
 -- Counter for averaging
 --
-signal avgCount     :   unsigned(numAvgs'length-1 downto 0) :=  (others => '0');
+signal avgCount     :   unsigned(MAX_EXTENSION - 1 downto 0) :=  (others => '0');
 --
 -- Split input signals and averaged signals
 --
-signal adc1, adc1_tmp, adc2, adc2_tmp   :   signed(EXT_WIDTH-1 downto 0) :=  (others => '0');
+signal adc1, adc1_tmp, adc2, adc2_tmp   :   signed(EXT_WIDTH - 1 downto 0) :=  (others => '0');
 
 begin
 --
