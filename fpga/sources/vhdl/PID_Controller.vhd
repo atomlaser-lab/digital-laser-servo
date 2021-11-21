@@ -74,7 +74,7 @@ END COMPONENT;
 constant ENABLE_DELAY   :   natural :=  12500000; --100 ms
 signal enable	:	std_logic;
 signal polarity	:	std_logic;
-signal enableDelayCount :   unsigned(16 downto 0);
+signal enableDelayCount :   unsigned(23 downto 0);
 signal enableSync   :   std_logic_vector(1 downto 0);
 --
 -- Internal measurement, control, and scan signals
