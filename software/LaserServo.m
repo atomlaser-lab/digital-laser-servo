@@ -19,6 +19,7 @@ classdef LaserServo < handle
         pid                 %PID settings, a 2 element array
         scan                %Scan settings
         lockin              %Lock-in settings
+        lock_detect         %Lock detect settings
         fifoRoute           %Routing settings for FIFO, a 2 element array
         sampleTime          %FIFO sample time
         
@@ -34,7 +35,7 @@ classdef LaserServo < handle
         fifoReg             %Register for FIFO
         
         lockinRegs          %Registers for lock-in detection
-        
+        lockDetectReg       %Register for lock detection
     end
     
     properties(Constant)
@@ -45,13 +46,18 @@ classdef LaserServo < handle
         ADC_WIDTH = 14;                 %Bit width of ADC values
         DAC_WIDTH = 14;                 %Bit width of DAC values
         %
+        % Register constants
+        %
+        NUM_PID_REGS = 3;               %Number of PID registers per PID
+        NUM_LOCKIN_REGS = 4;            %Number of lock-in detection registers
+        %
         % Conversion values going from integer values to volts
         %
         CONV_ADC_LV = 1.1851/2^(LaserServo.ADC_WIDTH - 1);
         CONV_ADC_HV = 29.3570/2^(LaserServo.ADC_WIDTH - 1);
         CONV_DAC = 1.079/2^(LaserServo.ADC_WIDTH - 1);
         
-        FIFO_ROUTE_TABLE = {'adc1','adc2','scan','pid1','pid2','out1','out2','demod1','demod2'};
+        FIFO_ROUTE_TABLE = {'adc1','adc2','scan','pid1','pid2','out1','out2','demod1','demod2','lock_detect'};
         INPUT_TABLE = {'adc1','adc2','demod1','demod2'};
         OUTPUT_TABLE = {'pid','modulation'};
     end
@@ -93,7 +99,7 @@ classdef LaserServo < handle
             % There are 3 PID registers PER PID
             %
             self.pidRegs = DeviceRegister.empty;
-            for nn = 0:2
+            for nn = 0:(self.NUM_PID_REGS - 1)
                 self.pidRegs(1,nn + 1) = DeviceRegister(hex2dec('10') + nn*4,self.conn);
                 self.pidRegs(2,nn + 1) = DeviceRegister(hex2dec('20') + nn*4,self.conn);
             end
@@ -111,9 +117,13 @@ classdef LaserServo < handle
             % There are four lock-in registers from 0x40 to 0x4C
             %
             self.lockinRegs = DeviceRegister.empty;
-            for nn = 0:3
+            for nn = 0:(self.NUM_LOCKIN_REGS - 1)
                 self.lockinRegs(nn + 1) = DeviceRegister(hex2dec('50') + nn*4,self.conn);
             end
+            %
+            % There is one R/W register for lock detection
+            %
+            self.lockDetectReg = DeviceRegister('60',self.conn);
             %
             % Input selector and top-level settings
             %
@@ -157,6 +167,10 @@ classdef LaserServo < handle
             % Lock-in settings
             %
             self.lockin = LaserServoLockInControl(self,self.lockinRegs);
+            %
+            % Lock detection settings
+            %
+            self.lock_detect = LaserServoLockDetectionControl(self,self.lockDetectReg);
         end
         
         function self = setDefaults(self,varargin)
@@ -171,6 +185,7 @@ classdef LaserServo < handle
             self.pid.setDefaults;
             self.scan.setDefaults;
             self.lockin.setDefaults;
+            self.lock_detect.setDefaults;
             self.fifoRoute(1).set('adc1');
             self.fifoRoute(2).set('scan');
             self.setSampleTime;
@@ -231,7 +246,8 @@ classdef LaserServo < handle
                  self.pidRegs.getWriteData;
                  self.scanRegs.getWriteData;
                  self.fifoReg.getWriteData;
-                 self.lockinRegs.getWriteData];
+                 self.lockinRegs.getWriteData;
+                 self.lockDetectReg.getWriteData];
             d = d';
             d = d(:);
             %
@@ -256,7 +272,8 @@ classdef LaserServo < handle
                  self.pidRegs(2,:).getReadData;
                  self.scanRegs.getReadData;
                  self.fifoReg.getReadData;
-                 self.lockinRegs.getReadData];
+                 self.lockinRegs.getReadData;
+                 self.lockDetectReg.getReadData];
             self.conn.write(d,'mode','read');
             value = self.conn.recvMessage;
             %
@@ -277,6 +294,7 @@ classdef LaserServo < handle
             self.lockinRegs(2).value = value(14);
             self.lockinRegs(3).value = value(15);
             self.lockinRegs(4).value = value(16);
+            self.lockDetectReg.value = value(17);
             %
             % Read parameters from registers
             %
@@ -289,6 +307,7 @@ classdef LaserServo < handle
             self.pid.get;
             self.scan.get;
             self.lockin.get;
+            self.lock_detect.get;
             for nn = 1:numel(self.fifoRoute)
                 self.fifoRoute(nn).get;
             end
@@ -340,6 +359,8 @@ classdef LaserServo < handle
             for nn = 1:size(v,2)
                 if any(strcmpi(self.fifoRoute(nn).value,{'adc1','adc2'}))
                     self.data(:,nn) = c*v(:,nn);
+                elseif strcmpi(self.fifoRoute(nn).value,'lock_detect')
+                    self.data(:,nn) = v(:,nn);
                 else
                     self.data(:,nn) = self.CONV_DAC*v(:,nn);
                 end
@@ -385,6 +406,7 @@ classdef LaserServo < handle
             self.scanRegs.print('scanRegs',strwidth);
             self.fifoReg.print('fifoReg',strwidth);
             self.lockinRegs.print('lockinRegs',strwidth);
+            self.lockDetectReg.print('lockDetectReg',strwidth);
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Input/Output Parameters\n');
             self.inputSelect.print('Input select',strwidth,'%s');
@@ -411,6 +433,9 @@ classdef LaserServo < handle
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Lock-in Parameters\n');
             self.lockin.print(strwidth);
+            fprintf(1,'\t ----------------------------------\n');
+            fprintf(1,'\t Lock Detection Parameters\n');
+            self.lock_detect.print(strwidth);
             
         end
         
@@ -432,6 +457,7 @@ classdef LaserServo < handle
             s.pid = self.pid.struct;
             s.scan = self.scan.struct;
             s.lockin = self.lockin.struct;
+            s.lock_detect = self.lock_detect.struct;
             s.sampleTime = self.sampleTime.struct;
             s.fifoRoute = self.fifoRoute.struct;
         end
@@ -459,6 +485,7 @@ classdef LaserServo < handle
             self.pid.loadstruct(s.pid);
             self.scan.loadstruct(s.scan);
             self.lockin.loadstruct(s.lockin);
+            self.lock_detect.loadstruct(s.lock_detect);
             self.sampleTime.set(s.sampleTime.value);
             for nn = 1:numel(self.fifoRoute)
                 self.fifoRoute(nn).set(s.fifoRoute(nn).value);
@@ -488,6 +515,7 @@ classdef LaserServo < handle
             self.pid.loadstruct(s.pid);
             self.scan.loadstruct(s.scan);
             self.lockin.loadstruct(s.lockin);
+            self.lock_detect.loadstruct(s.lock_detect);
             self.sampleTime.set(s.sampleTime.value);
             for nn = 1:numel(self.fifoRoute)
                 self.fifoRoute(nn).set(s.fifoRoute(nn).value);
