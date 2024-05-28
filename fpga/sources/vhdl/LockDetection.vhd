@@ -136,6 +136,8 @@ dds_sin <= dds_mix_o(DDS_OUT_WIDTH + 16 - 1 downto 16);
 --
 -- Perform mixing (multiplication)
 --
+data_slv_i <= std_logic_vector(resize(data_i,data_slv_i'length));
+--data_slv_i <= (others => '0');
 LockDetectCosMult: Mixer_Mult
 port map(
     clk     =>  clk,
@@ -261,13 +263,14 @@ port map(
 PowerMultDelayProc: process(clk,aresetn) is
 begin
     if aresetn = '0' then
+        delayCount <= (others => '0');
         lock_detect_valid_o <= '0';
         power_2f <= (others => '0');
     elsif rising_edge(clk) then
-        if filt_cos2_valid = '1' and delayCount = 0 then
+        if filt_cos2_valid = '1' then
             delayCount <= to_unsigned(1,delayCount'length);
             lock_detect_valid_o <= '0';
-        elsif delayCount < MULT_LATENCY then
+        elsif delayCount > 0 and delayCount < MULT_LATENCY then
             delayCount <= delayCount + 1;
         elsif delayCount = MULT_LATENCY then
             delayCount <= (others => '0');
