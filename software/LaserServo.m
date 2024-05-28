@@ -36,6 +36,7 @@ classdef LaserServo < handle
         
         lockinRegs          %Registers for lock-in detection
         lockDetectReg       %Register for lock detection
+        lockDetectReg_o     %Register for lock detection output
     end
     
     properties(Constant)
@@ -124,6 +125,7 @@ classdef LaserServo < handle
             % There is one R/W register for lock detection
             %
             self.lockDetectReg = DeviceRegister('60',self.conn);
+            self.lockDetectReg_o = DeviceRegister('0100000C',self.conn);
             %
             % Input selector and top-level settings
             %
@@ -273,7 +275,8 @@ classdef LaserServo < handle
                  self.scanRegs.getReadData;
                  self.fifoReg.getReadData;
                  self.lockinRegs.getReadData;
-                 self.lockDetectReg.getReadData];
+                 self.lockDetectReg.getReadData;
+                 self.lockDetectReg_o.getReadData];
             self.conn.write(d,'mode','read');
             value = self.conn.recvMessage;
             %
@@ -295,6 +298,7 @@ classdef LaserServo < handle
             self.lockinRegs(3).value = value(15);
             self.lockinRegs(4).value = value(16);
             self.lockDetectReg.value = value(17);
+            self.lockDetectReg_o.value = value(18);
             %
             % Read parameters from registers
             %
@@ -346,25 +350,24 @@ classdef LaserServo < handle
             %
             % Convert data to correct units
             %
-            v = self.convertData(raw);
-            if strcmpi(self.jumpers,'lv')
-                c = self.CONV_ADC_LV;
-            elseif strcmpi(self.jumpers,'hv')
-                c = self.CONV_ADC_HV;
-            end
-            %
-            % Loop through channels
-            %
-            self.data = [];
-            for nn = 1:size(v,2)
+            c = [1,1];types = {'int16','int16'};
+            for nn = 1:2
                 if any(strcmpi(self.fifoRoute(nn).value,{'adc1','adc2'}))
-                    self.data(:,nn) = c*v(:,nn);
+                    types{nn} = 'int16';
+                    if strcmpi(self.jumpers,'lv')
+                        c(nn) = self.CONV_ADC_LV;
+                    elseif strcmpi(self.jumpers,'hv')
+                        c(nn) = self.CONV_ADC_HV;
+                    end
                 elseif strcmpi(self.fifoRoute(nn).value,'lock_detect')
-                    self.data(:,nn) = v(:,nn);
+                    c(nn) = 1;
+                    types{nn} = 'uint16';
                 else
-                    self.data(:,nn) = self.CONV_DAC*v(:,nn);
+                    c(nn) = self.CONV_DAC;
+                    types{nn} = 'int16';
                 end
             end
+            self.data = self.convertData(raw,c,types);
             %
             % Create time vectors
             %
@@ -407,6 +410,7 @@ classdef LaserServo < handle
             self.fifoReg.print('fifoReg',strwidth);
             self.lockinRegs.print('lockinRegs',strwidth);
             self.lockDetectReg.print('lockDetectReg',strwidth);
+            self.lockDetectReg_o.print('lockDetectReg_o',strwidth);
             fprintf(1,'\t ----------------------------------\n');
             fprintf(1,'\t Input/Output Parameters\n');
             self.inputSelect.print('Input select',strwidth,'%s');
@@ -522,7 +526,7 @@ classdef LaserServo < handle
             end
         end
         
-        function v = convertData(raw,c)
+        function v = convertData(raw,c,types)
             %CONVERTDATA Converts raw data into proper int16/double format
             %
             %   V = CONVERTDATA(RAW) Unpacks raw data from uint8 values to
@@ -533,20 +537,28 @@ classdef LaserServo < handle
             
             if nargin < 2
                 c = 1;
+                types = {'int16','int16'};
+            elseif nargin < 3
+                types = {'int16','int16'};
+            end
+            if numel(c) == 1
+                c = [c,c];
             end
             
             Nraw = numel(raw);
-            d = zeros(Nraw/4,2,'int16');
+            d1 = zeros(Nraw/4,1,types{1});
+            d2 = zeros(Nraw/4,1,types{2});
             
             mm = 1;
             for nn = 1:4:Nraw
-                d(mm,1) = typecast(uint8(raw(nn + (0:1))),'int16');
-                d(mm,2) = typecast(uint8(raw(nn + (2:3))),'int16');
+                d1(mm) = typecast(uint8(raw(nn + (0:1))),types{1});
+                d2(mm) = typecast(uint8(raw(nn + (2:3))),types{2});
                 mm = mm + 1;
             end
             
-            v = double(d)*c;
+            v = [double(d1)*c(1),double(d2)*c(2)];
         end
+
     end
     
 end
