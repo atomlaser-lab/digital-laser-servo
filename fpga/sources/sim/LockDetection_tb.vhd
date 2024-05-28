@@ -52,13 +52,14 @@ signal dds_mix_o                        :   std_logic_vector(31 downto 0);
 signal dds_cos, dds_sin                 :   std_logic_vector(DDS_OUT_WIDTH - 1 downto 0);
 
 
-signal clk_period   :   time    :=  10 ns;
+constant clk_period   :   time    :=  5 ns;
 signal clk          :   std_logic;
 signal aresetn      :   std_logic;
 
 signal data_i   :   t_adc;
 signal valid_i  :   std_logic;
-signal mod_freq :   std_logic_vector(31 downto 0);
+signal mod_freq :   unsigned(31 downto 0);
+signal mod_freq_i :   std_logic_vector(31 downto 0);
 signal reg_i    :   t_param_reg;
 
 signal power_2f :   unsigned(15 downto 0);
@@ -72,7 +73,7 @@ uut: LockDetection
 port map(
     clk     =>  clk,
     aresetn =>  aresetn,
-    mod_freq_i  =>  mod_freq,
+    mod_freq_i  =>  mod_freq_i,
     reg_i   =>  reg_i,
     data_i  =>  data_i,
     valid_i =>  valid_i,
@@ -89,7 +90,7 @@ begin
     wait for clk_period/2;
 end process;
 
-dds_phase_i <= X"00000000" & std_logic_vector(shift_right(unsigned(mod_freq),1));
+dds_phase_i <= X"00000000" & std_logic_vector(shift_left(unsigned(mod_freq_i),1));
 LockDetectDDS: DDS_Stream_Phase
 port map(
     aclk                =>  clk,
@@ -103,19 +104,21 @@ port map(
 dds_cos <= dds_mix_o(DDS_OUT_WIDTH - 1 downto 0);
 dds_sin <= dds_mix_o(DDS_OUT_WIDTH + 16 - 1 downto 16); 
 
-data_i <= resize(signed(dds_cos),data_i'length);
+data_i <= shift_left(resize(signed(dds_cos),data_i'length),2);
+
+mod_freq_i <= std_logic_vector(shift_left(mod_freq,3));
 
 main_proc: process is
 begin
     aresetn <= '0';
     mod_freq <= X"003126e9";
-    reg_i <= X"00000964";
+    reg_i <= X"00090964";
     valid_i <= '1';
     wait for 100 ns;
     wait until clk'event and clk = '1';
     aresetn <= '1';
     wait until clk'event and clk = '1';
-    reg_i <= X"00000864";
+    reg_i <= X"00030964";
     wait;
 end process; 
 

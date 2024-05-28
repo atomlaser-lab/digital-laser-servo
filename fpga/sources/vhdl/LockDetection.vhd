@@ -87,11 +87,12 @@ signal data_slv_i                       :   std_logic_vector(13 downto 0);
 signal mult_cos_o, mult_sin_o           :   std_logic_vector(data_slv_i'length + DDS_OUT_WIDTH - 1 downto 0);  
 
 signal mod_freq                         :   unsigned(31 downto 0);
-signal cicLog2Rate                      :   unsigned(3 downto 0);
-signal cicShift                         :   natural;
-signal setShift                         :   unsigned(3 downto 0);
+signal cicLog2Rate, cicLog2Rate2        :   unsigned(3 downto 0);
+signal cicShift, cicShift2              :   natural;
+signal setShift, setShift2              :   unsigned(3 downto 0);
 signal filter_config, filter_config_old :   std_logic_vector(15 downto 0);
-signal filter_valid                     :   std_logic;
+signal filter_config2, filter_config_old2 :   std_logic_vector(15 downto 0);
+signal filter_valid, filter_valid2      :   std_logic;
 signal filt_cos_i, filt_sin_i           :   std_logic_vector(31 downto 0);
 signal filt_cos2_i, filt_sin2_i         :   std_logic_vector(31 downto 0);
 signal filt_cos_o, filt_sin_o           :   std_logic_vector(71 downto 0);
@@ -117,6 +118,11 @@ cicLog2Rate <= unsigned(reg_i(11 downto 8));
 setShift <= unsigned(reg_i(15 downto 12));
 cicShift <= to_integer(cicLog2Rate) + to_integer(cicLog2Rate) + to_integer(cicLog2Rate);
 filter_config <= std_logic_vector(shift_left(to_unsigned(1,filter_config'length),to_integer(cicLog2Rate)));
+
+cicLog2Rate2 <= unsigned(reg_i(19 downto 16));
+setShift2 <= unsigned(reg_i(23 downto 20));
+cicShift2 <= to_integer(cicLog2Rate2) + to_integer(cicLog2Rate2) + to_integer(cicLog2Rate2);
+filter_config2 <= std_logic_vector(shift_left(to_unsigned(1,filter_config2'length),to_integer(cicLog2Rate2)));
 --
 -- Generate 2f signal, sin and cos
 --
@@ -160,19 +166,19 @@ filt_cos_i <= std_logic_vector(resize(signed(mult_cos_o),filt_cos_i'length));
 filt_sin_i <= std_logic_vector(resize(signed(mult_sin_o),filt_cos_i'length));
 
 ChangeProc: process(clk,aresetn) is
-    begin
-        if aresetn = '0' then
-            filter_config_old <= filter_config;
+begin
+    if aresetn = '0' then
+        filter_config_old <= filter_config;
+        filter_valid <= '0';
+    elsif rising_edge(clk) then
+        filter_config_old <= filter_config;
+        if filter_config /= filter_config_old then
+            filter_valid <= '1';
+        else
             filter_valid <= '0';
-        elsif rising_edge(clk) then
-            filter_config_old <= filter_config;
-            if filter_config /= filter_config_old then
-                filter_valid <= '1';
-            else
-                filter_valid <= '0';
-            end if;
         end if;
-    end process; 
+    end if;
+end process; 
 
 CosFilter : LockInFilter
 PORT MAP (
@@ -207,12 +213,27 @@ PORT MAP (
 filt_cos2_i <= std_logic_vector(resize(shift_right(signed(filt_cos_o(64 downto 0)),cicShift + to_integer(setShift)),filt_cos2_i'length));
 filt_sin2_i <= std_logic_vector(resize(shift_right(signed(filt_sin_o(64 downto 0)),cicShift + to_integer(setShift)),filt_sin2_i'length));
 
+ChangeProc2: process(clk,aresetn) is
+begin
+    if aresetn = '0' then
+        filter_config_old2 <= filter_config2;
+        filter_valid2 <= '0';
+    elsif rising_edge(clk) then
+        filter_config_old2 <= filter_config2;
+        if filter_config2 /= filter_config_old2 then
+            filter_valid2 <= '1';
+        else
+            filter_valid2 <= '0';
+        end if;
+    end if;
+end process; 
+
 CosFilter2 : LockInFilter
 PORT MAP (
     aclk                    => clk,
     aresetn                 => aresetn,
-    s_axis_config_tdata     => filter_config,
-    s_axis_config_tvalid    => filter_valid,
+    s_axis_config_tdata     => filter_config2,
+    s_axis_config_tvalid    => filter_valid2,
     s_axis_config_tready    => open,
     s_axis_data_tdata       => filt_cos2_i,
     s_axis_data_tvalid      => filt_cos_valid,
@@ -225,8 +246,8 @@ SinFilter2 : LockInFilter
 PORT MAP (
     aclk                    => clk,
     aresetn                 => aresetn,
-    s_axis_config_tdata     => filter_config,
-    s_axis_config_tvalid    => filter_valid,
+    s_axis_config_tdata     => filter_config2,
+    s_axis_config_tvalid    => filter_valid2,
     s_axis_config_tready    => open,
     s_axis_data_tdata       => filt_sin2_i,
     s_axis_data_tvalid      => filt_sin_valid,
@@ -235,8 +256,8 @@ PORT MAP (
     m_axis_data_tvalid      => filt_sin2_valid
 ); 
 
-filt_cos2 <= resize(shift_right(signed(filt_cos2_o(64 downto 0)),cicShift + to_integer(setShift)),filt_cos2'length);
-filt_sin2 <= resize(shift_right(signed(filt_sin2_o(64 downto 0)),cicShift + to_integer(setShift)),filt_sin2'length);
+filt_cos2 <= resize(shift_right(signed(filt_cos2_o(64 downto 0)),cicShift2 + to_integer(setShift2)),filt_cos2'length);
+filt_sin2 <= resize(shift_right(signed(filt_sin2_o(64 downto 0)),cicShift2 + to_integer(setShift2)),filt_sin2'length);
 
 --
 -- Determine signal power at 2f
@@ -275,7 +296,7 @@ begin
         elsif delayCount = MULT_LATENCY then
             delayCount <= (others => '0');
             lock_detect_valid_o <= '1';
-            power_2f <= resize(unsigned(power_mult_cos_o) + unsigned(power_mult_sin_o),power_2f'length);
+            power_2f <= resize(shift_right(unsigned(power_mult_cos_o) + unsigned(power_mult_sin_o),16),power_2f'length);
         else
             lock_detect_valid_o <= '0';
         end if;
