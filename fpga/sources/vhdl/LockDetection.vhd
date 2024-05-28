@@ -204,8 +204,8 @@ PORT MAP (
 --
 -- Filter a second time
 --
-filt_cos2_i <= std_logic_vector(resize(shift_right(signed(filt_cos_o(64 downto 0)),cicShift),filt_cos2_i'length));
-filt_sin2_i <= std_logic_vector(resize(shift_right(signed(filt_sin_o(64 downto 0)),cicShift),filt_sin2_i'length));
+filt_cos2_i <= std_logic_vector(resize(shift_right(signed(filt_cos_o(64 downto 0)),cicShift + to_integer(setShift)),filt_cos2_i'length));
+filt_sin2_i <= std_logic_vector(resize(shift_right(signed(filt_sin_o(64 downto 0)),cicShift + to_integer(setShift)),filt_sin2_i'length));
 
 CosFilter2 : LockInFilter
 PORT MAP (
@@ -235,8 +235,8 @@ PORT MAP (
     m_axis_data_tvalid      => filt_sin2_valid
 ); 
 
-filt_cos2 <= resize(shift_right(signed(filt_cos2_o(64 downto 0)),cicShift),filt_cos2'length);
-filt_sin2 <= resize(shift_right(signed(filt_sin2_o(64 downto 0)),cicShift),filt_sin2'length);
+filt_cos2 <= resize(shift_right(signed(filt_cos2_o(64 downto 0)),cicShift + to_integer(setShift)),filt_cos2'length);
+filt_sin2 <= resize(shift_right(signed(filt_sin2_o(64 downto 0)),cicShift + to_integer(setShift)),filt_sin2'length);
 
 --
 -- Determine signal power at 2f
