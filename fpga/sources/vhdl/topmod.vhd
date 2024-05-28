@@ -73,7 +73,7 @@ component LockInDetector is
         --
         -- Control
         --
-        regs_i      :   in  t_param_reg_array(4 downto 0);
+        regs_i      :   in  t_param_reg_array(3 downto 0);
         --
         -- Signal out
         --
@@ -112,7 +112,7 @@ component LockDetection is
         -- Lock detection
         --
         power_2f_o          :   out unsigned(15 downto 0);
-        lock_detect_o       :   std_logic;
+        lock_detect_o       :   out std_logic;
         lock_detect_valid_o :   out std_logic
     );
 end component;
@@ -220,6 +220,7 @@ signal lockinSelect                 :   std_logic;
 signal lock_detect_reg              :   t_param_reg;
 signal lock_detect_reg_o            :   t_param_reg;
 signal power_2f                     :   unsigned(15 downto 0);
+signal power_2f_signed              :   signed(15 downto 0);
 signal lock_detect                  :   std_logic;
 signal lock_detect_valid            :   std_logic;
 --
@@ -370,18 +371,20 @@ port map(
 --
 --Lock detection
 --
-lock_detect_reg_o <= (0 => lock_detect,others => '0');
+lock_detect_reg_o(31) <= lock_detect;
+lock_detect_reg_o(power_2f'left downto 0) <= std_logic_vector(power_2f);
+power_2f_signed <= signed(std_logic_vector(power_2f));
 LockDetection1: LockDetection
 port map (
-    clk                 =>  clk,
+    clk                 =>  adcClk,
     aresetn             =>  aresetn,
     mod_freq_i          =>  lockInRegs(0),
     reg_i               =>  lock_detect_reg,
     data_i              =>  lockin_data_i,
     valid_i             =>  '1',
-    power_2f_o          =>  power_2f_o,
-    lock_detect_o       =>  lock_detect_o,
-    lock_detect_valid_o =>  lock_detect_valid_o
+    power_2f_o          =>  power_2f,
+    lock_detect_o       =>  lock_detect,
+    lock_detect_valid_o =>  lock_detect_valid
 );
 --
 -- Define the scan module
@@ -473,7 +476,7 @@ fifo1 <= adcFilt_o(0)       when fifoRoute1 = adc1 else
          act2_o             when fifoRoute1 = act2 else
          lockin_data_o(0)   when fifoRoute1 = demod1 else
          lockin_data_o(1)   when fifoRoute1 = demod1 else
-         power_2f           when fifoRoute1 = lock_detect_power else
+         power_2f_signed    when fifoRoute1 = lock_detect_power else
          (others => '0');        
 
 fifoRoute2 <= convert_fifo_route(fifoReg(7 downto 4));
@@ -486,7 +489,7 @@ fifo2 <= adcFilt_o(0)       when fifoRoute2 = adc1 else
          act2_o             when fifoRoute2 = act2 else
          lockin_data_o(0)   when fifoRoute2 = demod1 else
          lockin_data_o(1)   when fifoRoute2 = demod1 else
-         power_2f           when fifoRoute2 = lock_detect_power else
+         power_2f_signed    when fifoRoute2 = lock_detect_power else
          (others => '0');
 
 

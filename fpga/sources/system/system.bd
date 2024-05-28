@@ -1,7 +1,7 @@
 {
   "design": {
     "design_info": {
-      "boundary_crc": "0xC3AD17F55A3D9E5F",
+      "boundary_crc": "0xC3AD17F527D5DB81",
       "device": "xc7z010clg400-1",
       "gen_directory": "../../../../rp-feedback.gen/sources_1/bd/system",
       "name": "system",
@@ -1009,9 +1009,6 @@
               },
               "PCW_INCLUDE_ACP_TRANS_CHECK": {
                 "value": "0"
-              },
-              "PCW_IRQ_F2P_MODE": {
-                "value": "DIRECT"
               },
               "PCW_MIO_0_IOTYPE": {
                 "value": "LVCMOS 3.3V"
@@ -3132,6 +3129,10 @@
             "vlnv_bus_definition": "xilinx.com:interface:axis:1.0",
             "vlnv": "xilinx.com:interface:axis_rtl:1.0",
             "parameters": {
+              "CLK_DOMAIN": {
+                "value": "system_AXIS_Red_Pitaya_ADC_0_0_adc_clk",
+                "value_src": "constant"
+              },
               "FREQ_HZ": {
                 "value": "125000000",
                 "value_src": "constant"
