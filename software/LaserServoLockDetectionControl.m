@@ -4,18 +4,22 @@ classdef LaserServoLockDetectionControl < handle
     
     properties(SetAccess = immutable)
         threshold       %Lock threshold value
-        cicRate         %Log2(CIC decimation rate)
-        shift           %Log2(division of filtered signals)
-        cicRate2
-        shift2
+        cicRates        %Log2(CIC decimation rate) for stages 1 and 2
+        shifts          %Log2(division of filtered signals) for stages 1 and 2
+        power           %Current power measurement
+        detected        %Is lock detected?
     end
     
     properties(SetAccess = protected)
         parent          %Parent object for the lock-in module
     end
+
+    properties(Constant)
+        NUM_FILT_STAGES = 2;
+    end
     
     methods
-        function self = LaserServoLockDetectionControl(parent,reg)
+        function self = LaserServoLockDetectionControl(parent,regs)
             %LASERSERVOLOCKDETECTIONCONTROL Creates an instance of the object
             %
             %   SELF = LASERSERVOLOCKDETECTIONCONTROL(PARENT,REGS) creates an
@@ -23,20 +27,23 @@ classdef LaserServoLockDetectionControl < handle
             
             self.parent = parent;
 
-            self.threshold = DeviceParameter([0,7],reg)...
-                .setLimits('lower',0,'upper',255);
-            
-            self.cicRate = DeviceParameter([8,11],reg)...
+            self.cicRates = DeviceParameter([0,3],regs(1))...
                 .setLimits('lower',2,'upper',13);
 
-            self.shift = DeviceParameter([12,15],reg)...
+            self.shifts = DeviceParameter([4,7],regs(1))...
                 .setLimits('lower',0,'upper',16);
 
-            self.cicRate2 = DeviceParameter([16,19],reg)...
+            self.cicRates(2) = DeviceParameter([8,11],regs(1))...
                 .setLimits('lower',2,'upper',13);
 
-            self.shift2 = DeviceParameter([20,23],reg)...
+            self.shifts(2) = DeviceParameter([12,15],regs(1))...
                 .setLimits('lower',0,'upper',16);
+
+            self.threshold = DeviceParameter([16,31],regs(1))...
+                .setLimits('lower',0,'upper',2^16 - 1);
+
+            self.power = DeviceParameter([0,15],regs(2));
+            self.detected = DeviceParameter([31,31],regs(2));
         end
         
         function self = setDefaults(self)
@@ -46,10 +53,10 @@ classdef LaserServoLockDetectionControl < handle
             %   SELF
             
             self.threshold.set(100);
-            self.cicRate.set(7);
-            self.shift.set(0);
-            self.cicRate2.set(10);
-            self.shift2.set(0);
+            self.cicRates(1).set(10);
+            self.shifts(1).set(0);
+            self.cicRates(2).set(5);
+            self.shifts(2).set(0);
         end
         
         function self = get(self)
@@ -58,10 +65,12 @@ classdef LaserServoLockDetectionControl < handle
             %   SELF = GET(SELF) Retrieves values for parameters associated
             %   with object SELF
             self.threshold.get;
-            self.cicRate.get;
-            self.shift.get;
-            self.cicRate2.get;
-            self.shift2.get;
+            for nn = 1:self.NUM_FILT_STAGES
+                self.cicRates(nn).get;
+                self.shifts(nn).get;
+            end
+            self.power.get;
+            self.detected.get;
         end
 
         function ss = print(self,width)
@@ -71,11 +80,13 @@ classdef LaserServoLockDetectionControl < handle
             %   object SELF with label width WIDTH.  If S is not requested,
             %   prints it to the command line
             s{1} = self.threshold.print('Detection threshold',width,'%.0f');
-            s{2} = self.cicRate.print('Log2(CIC decimation)',width,'%d');
-            s{3} = self.shift.print('Log2(Div. filt. signals)',width,'%d');
-            s{4} = self.cicRate2.print('Log2(CIC decimation) 2',width,'%d');
-            s{5} = self.shift2.print('Log2(Div. filt. signals 2)',width,'%d');
-            
+            s{2} = self.cicRates(1).print('Log2(CIC decimation)',width,'%d');
+            s{3} = self.shifts(1).print('Log2(Div. filt. signals)',width,'%d');
+            s{4} = self.cicRates(2).print('Log2(CIC decimation) 2',width,'%d');
+            s{5} = self.shifts(2).print('Log2(Div. filt. signals 2)',width,'%d');
+            s{6} = self.power.print('Lock detection power',width,'%d');
+            s{7} = self.detected.print('Lock detected?',width,'%d');
+
             ss = '';
             for nn = 1:numel(s)
                 ss = [ss,s{nn}]; %#ok<*AGROW>
@@ -94,19 +105,15 @@ classdef LaserServoLockDetectionControl < handle
         function s = struct(self)
             %STRUCT Creates a struct from the object
             s.threshold = self.threshold.struct;
-            s.cicRate = self.cicRate.struct;
-            s.shift = self.shift.struct;
-            s.cicRate2 = self.cicRate2.struct;
-            s.shift2 = self.shift2.struct;
+            s.cicRates = self.cicRates.struct;
+            s.shifts = self.shifts.struct;
         end
         
         function self = loadstruct(self,s)
             %LOADSTRUCT Loads a struct into the object
             self.threshold.set(s.threshold.value);
-            self.cicRate.set(s.cicRate.value);
-            self.shift.set(s.shift.value);
-            self.cicRate2.set(s.cicRate2.value);
-            self.shift2.set(s.shift2.value);
+            self.cicRates.set(s.cicRates.value);
+            self.shifts.set(s.shifts.value);
         end
         
     end

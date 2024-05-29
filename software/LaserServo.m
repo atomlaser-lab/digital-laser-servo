@@ -172,7 +172,7 @@ classdef LaserServo < handle
             %
             % Lock detection settings
             %
-            self.lock_detect = LaserServoLockDetectionControl(self,self.lockDetectReg);
+            self.lock_detect = LaserServoLockDetectionControl(self,[self.lockDetectReg,self.lockDetectReg_o]);
         end
         
         function self = setDefaults(self,varargin)

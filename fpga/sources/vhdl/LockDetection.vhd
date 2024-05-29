@@ -112,17 +112,20 @@ begin
 --
 -- Parse register
 --
+-- This doubles the input frequency
 mod_freq <= shift_left(resize(unsigned(mod_freq_i),mod_freq'length),1);
-power_threshold <= shift_left(resize(unsigned(reg_i(7 downto 0)),power_threshold'length),8);
-cicLog2Rate <= unsigned(reg_i(11 downto 8));
-setShift <= unsigned(reg_i(15 downto 12));
+
+cicLog2Rate <= unsigned(reg_i(3 downto 0));
+setShift <= unsigned(reg_i(7 downto 4));
 cicShift <= to_integer(cicLog2Rate) + to_integer(cicLog2Rate) + to_integer(cicLog2Rate);
 filter_config <= std_logic_vector(shift_left(to_unsigned(1,filter_config'length),to_integer(cicLog2Rate)));
 
-cicLog2Rate2 <= unsigned(reg_i(19 downto 16));
-setShift2 <= unsigned(reg_i(23 downto 20));
+cicLog2Rate2 <= unsigned(reg_i(11 downto 8));
+setShift2 <= unsigned(reg_i(15 downto 12));
 cicShift2 <= to_integer(cicLog2Rate2) + to_integer(cicLog2Rate2) + to_integer(cicLog2Rate2);
 filter_config2 <= std_logic_vector(shift_left(to_unsigned(1,filter_config2'length),to_integer(cicLog2Rate2)));
+
+power_threshold <= unsigned(reg_i(31 downto 16));
 --
 -- Generate 2f signal, sin and cos
 --
