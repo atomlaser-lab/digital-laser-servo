@@ -27,6 +27,7 @@ entity topmod is
         --
         ext_i           :   in  std_logic_vector(7 downto 0);
         ext_o           :   out std_logic_vector(7 downto 0);
+        led_o           :   out std_logic_vector(7 downto 0);
         --
         -- ADC data
         --
@@ -223,6 +224,7 @@ signal power_2f                     :   unsigned(15 downto 0);
 signal power_2f_signed              :   signed(15 downto 0);
 signal lock_detect                  :   std_logic;
 signal lock_detect_valid            :   std_logic;
+signal led_count                    :   unsigned(26 downto 0);
 --
 -- PID 1 settings and signals
 --
@@ -386,6 +388,23 @@ port map (
     lock_detect_o       =>  lock_detect,
     lock_detect_valid_o =>  lock_detect_valid
 );
+--
+-- Lock detection LED signalling. This flashes LED0 on/off at 1 Hz
+--
+LockDetectionLED: process(sysClk,aresetn) is
+begin
+    if aresetn = '0' then
+        led_count <= (others => '0');
+        led_o(0) <= '0';
+    elsif rising_edge(sysClk) then
+        led_count <= led_count + 1;
+        if led_count(led_count'left) = '0' then
+            led_o(0) <= '0';
+        else
+            led_o(0) <= '1';
+        end if;
+    end if;
+end process;
 --
 -- Define the scan module
 --
