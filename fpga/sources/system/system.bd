@@ -3264,6 +3264,11 @@
             "left": "7",
             "right": "0"
           },
+          "led_o": {
+            "direction": "O",
+            "left": "7",
+            "right": "0"
+          },
           "adcData_i": {
             "direction": "I",
             "left": "31",
@@ -3424,6 +3429,12 @@
         "ports": [
           "topmod_0/ext_o",
           "exp_p_tri_io"
+        ]
+      },
+      "topmod_0_led_o": {
+        "ports": [
+          "topmod_0/led_o",
+          "led_o"
         ]
       },
       "topmod_0_readData_o": {
