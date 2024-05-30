@@ -401,7 +401,7 @@ begin
         if led_count(led_count'left) = '0' then
             led_o(0) <= '0';
         else
-            led_o(0) <= '1';
+            led_o(0) <= lock_detect;
         end if;
     end if;
 end process;
