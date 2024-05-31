@@ -96,7 +96,7 @@ constant DDS_PHASE_WIDTH    :   natural :=  32;
 constant DDS_OUT_WIDTH      :   natural :=  12;
 subtype t_phase is std_logic_vector(DDS_PHASE_WIDTH - 1 downto 0);
 type t_phase_array is array(natural range <>) of t_phase;
-signal freq             :   t_phase_array(1 downto 0);
+signal freq             :   t_phase;
 signal phase            :   t_phase;
 signal dds_phase_i      :   std_logic_vector(63 downto 0);
 signal dds_dac_o        :   std_logic_vector(15 downto 0);
@@ -126,7 +126,7 @@ begin
 --
 -- Generate the output for the DAC to for phase-sensitive detection
 --
-freq(0) <= regs_i(0);
+freq <= regs_i(0);
 phase <= regs_i(1);
 dds_multiplier <= regs_i(2)(7 downto 0);
 
@@ -135,7 +135,7 @@ port map(
     aclk                =>  clk,
     aresetn             =>  aresetn,
     s_axis_phase_tvalid =>  '1',
-    s_axis_phase_tdata  =>  std_logic_vector(freq(0)),
+    s_axis_phase_tdata  =>  std_logic_vector(freq),
     m_axis_data_tvalid  =>  open,
     m_axis_data_tdata   =>  dds_dac_o
 );
@@ -154,7 +154,7 @@ dac_o <= resize(shift_right(signed(dds_mult_o),6),t_dac'length);
 --
 -- Generate the signal used for mixing
 --
-dds_phase_i <= phase & freq(1);
+dds_phase_i <= phase & freq;
 StreamPhase: DDS_Stream_Phase
 port map(
     aclk                =>  clk,
