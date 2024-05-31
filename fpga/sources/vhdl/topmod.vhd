@@ -74,7 +74,7 @@ component LockInDetector is
         --
         -- Control
         --
-        regs_i      :   in  t_param_reg_array(3 downto 0);
+        regs_i      :   in  t_param_reg_array(2 downto 0);
         --
         -- Signal out
         --
@@ -87,8 +87,8 @@ component LockInDetector is
         --
         -- Data out
         --
-        data_o      :   out t_adc_array;
-        valid_o     :   out std_logic_vector(1 downto 0)
+        data_o      :   out t_adc;
+        valid_o     :   out std_logic
     );
 end component;
 
@@ -209,11 +209,11 @@ signal filtValid_i, filtValid_o     :   std_logic;
 --
 -- Lock in signals
 --
-signal lockinRegs                   :   t_param_reg_array(3 downto 0);
+signal lockinRegs                   :   t_param_reg_array(2 downto 0);
 signal lockin_dac_o                 :   t_dac;
 signal lockin_data_i                :   t_adc;
-signal lockin_data_o                :   t_adc_array;
-signal lockin_valid_o               :   std_logic_vector(1 downto 0);
+signal lockin_data_o                :   t_adc;
+signal lockin_valid_o               :   std_logic;
 signal lockinSelect                 :   std_logic;
 --
 -- Lock detection signals
@@ -260,7 +260,7 @@ signal scanPolarity_o               :   std_logic;
 --
 -- Memory signals and settings
 --
-type t_fifo_route is (adc1, adc2, scan, pid1, pid2, act1, act2, demod1, demod2, lock_detect_power,no_output);
+type t_fifo_route is (adc1, adc2, scan, pid1, pid2, act1, act2, demod, lock_detect_power,no_output);
 type t_fifo_valid_state is (idle,wait_for_fifo1,wait_for_fifo2);
 signal fifoValidState               :   t_fifo_valid_state;
 signal fifoReg_o, fifoReg           :   t_param_reg;
@@ -293,10 +293,8 @@ begin
     elsif s = X"6" then
         result := act2;
     elsif s = X"7" then
-        result := demod1;
+        result := demod;
     elsif s = X"8" then
-        result := demod2;
-    elsif s = X"9" then
         result := lock_detect_power;
     else
         result := no_output;
@@ -425,11 +423,9 @@ scanEnable_i <= scanEnableSet and not(pidEnable1 or pidEnable2);
 --
 measure1_i <=   adcFilt_o(0) when inputSignalSelect = "00" else 
                 adcFilt_o(1) when inputSignalSelect = "01" else
-                lockin_data_o(0) when inputSignalSelect = "10" else
-                lockin_data_o(1) when inputSignalSelect = "11";
+                lockin_data_o;
                 
-measValid1_i <= lockin_valid_o(0) when inputSignalSelect = "10" else
-                lockin_valid_o(1) when inputSignalSelect = "11" else
+measValid1_i <= lockin_valid_o when inputSignalSelect(1) = '1' else
                 filtValid_o;
                 
 scanValid1_i <= scanValid_o and pidScanEnable1;
@@ -456,11 +452,9 @@ port map(
 --
 measure2_i <=   adcFilt_o(0) when inputSignalSelect = "00" else 
                 adcFilt_o(1) when inputSignalSelect = "01" else
-                lockin_data_o(0) when inputSignalSelect = "10" else
-                lockin_data_o(1) when inputSignalSelect = "11";
+                lockin_data_o;
                 
-measValid2_i <= lockin_valid_o(0) when inputSignalSelect = "10" else
-                lockin_valid_o(1) when inputSignalSelect = "11" else
+measValid2_i <= lockin_valid_o when inputSignalSelect(1) = '1' else
                 filtValid_o;
                 
 scanValid2_i <= scanValid_o and pidScanEnable2;
@@ -493,8 +487,7 @@ fifo1 <= adcFilt_o(0)       when fifoRoute1 = adc1 else
          pid2_o             when fifoRoute1 = pid2 else
          act1_o             when fifoRoute1 = act1 else
          act2_o             when fifoRoute1 = act2 else
-         lockin_data_o(0)   when fifoRoute1 = demod1 else
-         lockin_data_o(1)   when fifoRoute1 = demod1 else
+         lockin_data_o      when fifoRoute1 = demod else
          power_2f_signed    when fifoRoute1 = lock_detect_power else
          (others => '0');        
 
@@ -506,8 +499,7 @@ fifo2 <= adcFilt_o(0)       when fifoRoute2 = adc1 else
          pid2_o             when fifoRoute2 = pid2 else
          act1_o             when fifoRoute2 = act1 else
          act2_o             when fifoRoute2 = act2 else
-         lockin_data_o(0)   when fifoRoute2 = demod1 else
-         lockin_data_o(1)   when fifoRoute2 = demod1 else
+         lockin_data_o      when fifoRoute2 = demod else
          power_2f_signed    when fifoRoute2 = lock_detect_power else
          (others => '0');
 
@@ -620,7 +612,6 @@ begin
                             when X"000050" => rw(bus_m,bus_s,comState,lockinRegs(0));
                             when X"000054" => rw(bus_m,bus_s,comState,lockinRegs(1));
                             when X"000058" => rw(bus_m,bus_s,comState,lockinRegs(2));
-                            when X"00005C" => rw(bus_m,bus_s,comState,lockinRegs(3));
                             --
                             -- Lock detector settings
                             --

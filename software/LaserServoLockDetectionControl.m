@@ -1,4 +1,4 @@
-classdef LaserServoLockDetectionControl < handle
+classdef LaserServoLockDetectionControl < LaserServoSubModule
     %LASERSERVOLOCKDETECTIONCONTROL Defines a class for handling the laser servo
     %lock detection
     
@@ -8,10 +8,6 @@ classdef LaserServoLockDetectionControl < handle
         shifts          %Log2(division of filtered signals) for stages 1 and 2
         power           %Current power measurement
         detected        %Is lock detected?
-    end
-    
-    properties(SetAccess = protected)
-        parent          %Parent object for the lock-in module
     end
 
     properties(Constant)
@@ -58,20 +54,6 @@ classdef LaserServoLockDetectionControl < handle
             self.cicRates(2).set(5);
             self.shifts(2).set(0);
         end
-        
-        function self = get(self)
-            %GET Retrieves parameter values from associated registers
-            %
-            %   SELF = GET(SELF) Retrieves values for parameters associated
-            %   with object SELF
-            self.threshold.get;
-            for nn = 1:self.NUM_FILT_STAGES
-                self.cicRates(nn).get;
-                self.shifts(nn).get;
-            end
-            self.power.get;
-            self.detected.get;
-        end
 
         function ss = print(self,width)
             %PRINT Prints a string representing the object
@@ -100,20 +82,6 @@ classdef LaserServoLockDetectionControl < handle
             %DISP Displays the object properties
             disp('LaserServoLockDetectionControl object with properties:');
             disp(self.print(25));
-        end
-        
-        function s = struct(self)
-            %STRUCT Creates a struct from the object
-            s.threshold = self.threshold.struct;
-            s.cicRates = self.cicRates.struct;
-            s.shifts = self.shifts.struct;
-        end
-        
-        function self = loadstruct(self,s)
-            %LOADSTRUCT Loads a struct into the object
-            self.threshold.set(s.threshold.value);
-            self.cicRates.set(s.cicRates.value);
-            self.shifts.set(s.shifts.value);
         end
         
     end
