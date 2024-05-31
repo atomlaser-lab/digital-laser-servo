@@ -1,4 +1,4 @@
-classdef LaserServoScanControl < handle
+classdef LaserServoScanControl < LaserServoSubModule
     %LASERSERVOSCANCONTROL Defines a class for handling laser servo
     %scanning
     
@@ -11,7 +11,6 @@ classdef LaserServoScanControl < handle
     end
     
     properties(SetAccess = protected)
-        parent          %Parent object for the scan module
         duration        %Scan duration in seconds
     end
     
@@ -94,11 +93,7 @@ classdef LaserServoScanControl < handle
             %
             %   SELF = GET(SELF) Retrieves values for parameters associated
             %   with object SELF
-            self.enable.get;
-            self.offset.get;
-            self.amplitude.get;
-            self.stepTime.get;
-            self.stepSize.get;
+            get@LaserServoSubModule(self);
             self.duration = 2*2*self.amplitude.value/self.stepSize.value*self.stepTime.value;
         end
         
@@ -128,24 +123,6 @@ classdef LaserServoScanControl < handle
             %DISP Displays the object properties
             disp('LaserServoScanControl object with properties:');
             disp(self.print(25));
-        end
-        
-        function s = struct(self)
-            %STRUCT Creates a struct from the object
-            s.enable = self.enable.struct;
-            s.amplitude = self.amplitude.struct;
-            s.offset = self.offset.struct;
-            s.stepTime = self.stepTime.struct;
-            s.stepSize = self.stepSize.struct;
-        end
-        
-        function self = loadstruct(self,s)
-            %LOADSTRUCT Loads a struct into the object
-            self.enable.set(s.enable.value);
-            self.amplitude.set(s.amplitude.value);
-            self.offset.set(s.offset.value);
-            self.stepTime.set(s.stepTime.value);
-            self.stepSize.set(s.stepSize.value);
         end
     end
     

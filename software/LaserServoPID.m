@@ -1,4 +1,4 @@
-classdef LaserServoPID < handle
+classdef LaserServoPID < LaserServoSubModule
     %LASERSERVOPID Defines a class for handling the PID modules in the
     %laser servo
     
@@ -13,10 +13,6 @@ classdef LaserServoPID < handle
         control         %Control/set-point of the module
         lowerLimit      %Lower output limit for the module
         upperLimit      %Upper output limit for the module
-    end
-    
-    properties(SetAccess = protected)
-        parent          %Parent object
     end
     
     methods
@@ -78,30 +74,6 @@ classdef LaserServoPID < handle
             end
         end
         
-        function self = get(self)
-            %GET Retrieves parameter values from associated registers
-            %
-            %   SELF = GET(SELF) Retrieves values for parameters associated
-            %   with object SELF
-            
-            if numel(self) > 1
-                for nn = 1:numel(self)
-                    self(nn).get;
-                end
-            else
-                self.enable.get;
-                self.polarity.get;
-                self.scanEnable.get;
-                self.control.get;
-                self.Kp.get;
-                self.Ki.get;
-                self.Kd.get;
-                self.divisor.get;
-                self.lowerLimit.get;
-                self.upperLimit.get;
-            end
-        end
-        
         function [Kp,Ki,Kd] = calculateRealGains(self)
             %CALCULATEREALGAINS Calculates the "real",
             %continuous-controller equivalent gains
@@ -145,46 +117,6 @@ classdef LaserServoPID < handle
             %DISP Displays the object properties
             disp('LaserServoPID object with properties:');
             disp(self.print(25));
-        end
-        
-        function s = struct(self)
-            %STRUCT Creates a struct from the object
-            if numel(self) == 1
-                s.Kp = self.Kp.struct;
-                s.Ki = self.Ki.struct;
-                s.Kd = self.Kd.struct;
-                s.divisor = self.divisor.struct;
-                s.polarity = self.polarity.struct;
-                s.enable = self.enable.struct;
-                s.scanEnable = self.scanEnable.struct;
-                s.control = self.control.struct;
-                s.lowerLimit = self.lowerLimit.struct;
-                s.upperLimit = self.upperLimit.struct;
-            else
-                for nn = 1:numel(self)
-                    s(nn) = self(nn).struct;
-                end
-            end
-        end
-        
-        function self = loadstruct(self,s)
-            %LOADSTRUCT Loads a struct into the object
-            if numel(self) == 1
-                self.Kp.set(s.Kp.value);
-                self.Ki.set(s.Ki.value);
-                self.Kd.set(s.Kd.value);
-                self.divisor.set(s.divisor.value);
-                self.polarity.set(s.polarity.value);
-                self.enable.set(s.enable.value);
-                self.scanEnable.set(s.scanEnable.value);
-                self.control.set(s.control.value);
-                self.lowerLimit.set(s.lowerLimit.value);
-                self.upperLimit.set(s.upperLimit.value);
-            else
-                for nn = 1:numel(self)
-                    self(nn).loadstruct(s(nn));
-                end
-            end
         end
         
     end
