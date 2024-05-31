@@ -108,7 +108,7 @@ Data can be stored in a first-in first-out (FIFO) buffer on the FPGA for later r
 
 # Use
 
-The servo can be controlled from the MATLAB command line, but users will probably find it easier to control using the supplied GUI.  A screenshot of the GUI when scanning is shown below for a modulation transfer spectroscopy setup.  The blue signal is the MTS spectrum used as the error signal, and the red signal is the lock detection signal derived from the power in the second harmonic.
+The servo can be controlled from the MATLAB command line, but users will probably find it easier to control using the supplied GUI.  A screenshot of the GUI when scanning is shown below for a modulation transfer spectroscopy setup.  The blue signal is the MTS spectrum used as the error signal, and the red signal is the saturated absorption signal.
 
 ![Example GUI](images/gui-example-scan.png)
 
@@ -132,7 +132,7 @@ When the x-axis plot display is set to "Volts" (see Application Settings), you c
 
 The modulation tab controls the internal modulation signal generator and the lock-in detection settings.  
 
-![Example GUI locked](images/gui-example-locked.png)
+![Example GUI locked](images/gui-example-modulation.png)
 
 In this version, the modulation and demodulation frequencies can be different.  The modulation signal has an output voltage given by `Drive amplitude` which is the approximate peak output voltage into $50$ $\rm\Omega$.  What the two outputs on the RP produce can be controlled by the drop-down menus on `OUT1` and `OUT2`: `pid` selects the output of the respective PID controller, and `modulation` outputs the modulation signal.  The ADC used for demodulation can be selected using the drop-down menu `Lock-in ADC`.  Lock-in detection occurs using the `Demodulation phase` value, and this is filtered by a so-called CIC filter at a decimating rate of $2^N$ where $N$ is the value of `Log2 of CIC rate`.  The demodulated signal can be amplified/deamplified digitally using the `Log2 of CIC shift` value, which scales it by $2^A$ for value $A$.  Note that this does not increase the SNR, but it may be useful if the signal is too small and there is digitisation noise on the signal.    
 
@@ -144,9 +144,13 @@ Upper and lower limits to the PID outputs can be set, and they cannot exceed +/-
 
 ## Lock detection
 
-Lock-in detection at the fundamental will generate a signal proportional to the first derivative of the absorption spectrum, which is useful for producing an error signal.  Lock-in detection at the second harmonic will generate a signal proportional to the second derivative, and this can be used to detect if the laser is locked as there will only be power in the second harmonic when it is on resonance with the atomic transition.
+Lock-in detection at the fundamental will generate a signal proportional to the first derivative of the absorption spectrum, which is useful for producing an error signal.  Lock-in detection at the second harmonic will generate a signal proportional to the second derivative, and this can be used to detect if the laser is locked as there will only be power in the second harmonic when it is on resonance with the atomic transition.  The below image shows what the lock detect signal looks like while scanning.
 
-![Example GUI lock detection](images/gui-example-lock-detection.png)
+![Example GUI lock detection on scan](images/gui-example-scan-lock-detect.png)
+
+And the following image shows what the signal looks like when locked.
+
+![Example GUI lock detection when locked](images/gui-example-lock-detect-locked.png)
 
 Because the signal level in the second harmonic is much less than the fundamental, lock detection uses two cascaded CIC filters with their own rates and re-scaling.  This improves the SNR at the cost of bandwidth, but as it is only being used for lock detection the bandwidth is mostly irrelevant.  Lock detection requires a threshold power, and when the power in the second harmonic is above this value (in arbitrary units) the "LED" on the GUI will turn green.  Additionally, one of the orange LEDs on the Red Pitaya (the one closest to ethernet and power connectors) will flash on and off at about 1 Hz.  
 
