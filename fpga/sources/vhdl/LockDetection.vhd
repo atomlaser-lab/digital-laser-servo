@@ -88,8 +88,8 @@ signal mult_cos_o, mult_sin_o           :   std_logic_vector(data_slv_i'length +
 
 signal mod_freq                         :   unsigned(31 downto 0);
 signal cicLog2Rate, cicLog2Rate2        :   unsigned(3 downto 0);
-signal cicShift, cicShift2              :   natural;
-signal setShift, setShift2              :   unsigned(3 downto 0);
+signal cicShift, cicShift2              :   integer :=  0;
+signal setShift, setShift2              :   signed(3 downto 0);
 signal filter_config, filter_config_old :   std_logic_vector(15 downto 0);
 signal filter_config2, filter_config_old2 :   std_logic_vector(15 downto 0);
 signal filter_valid, filter_valid2      :   std_logic;
@@ -116,12 +116,12 @@ begin
 mod_freq <= shift_left(resize(unsigned(mod_freq_i),mod_freq'length),1);
 
 cicLog2Rate <= unsigned(reg_i(3 downto 0));
-setShift <= unsigned(reg_i(7 downto 4));
+setShift <= signed(reg_i(7 downto 4));
 cicShift <= to_integer(cicLog2Rate) + to_integer(cicLog2Rate) + to_integer(cicLog2Rate);
 filter_config <= std_logic_vector(shift_left(to_unsigned(1,filter_config'length),to_integer(cicLog2Rate)));
 
 cicLog2Rate2 <= unsigned(reg_i(11 downto 8));
-setShift2 <= unsigned(reg_i(15 downto 12));
+setShift2 <= signed(reg_i(15 downto 12));
 cicShift2 <= to_integer(cicLog2Rate2) + to_integer(cicLog2Rate2) + to_integer(cicLog2Rate2);
 filter_config2 <= std_logic_vector(shift_left(to_unsigned(1,filter_config2'length),to_integer(cicLog2Rate2)));
 
